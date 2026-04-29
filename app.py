@@ -191,14 +191,8 @@ tab_choice = tab_choice or "🛒 Bán hàng"
 st.markdown("<div style='margin-top:8px;'></div>", unsafe_allow_html=True)
 
 if tab_choice == "🛒 Bán hàng":
-    st.info(
-        "✅ **Bước 1 hoàn tất** — Auth + Setup project đã sẵn sàng.\n\n"
-        "Màn hình bán hàng sẽ được build ở **Bước 2**."
-    )
-    st.markdown(f"**Đăng nhập:** {ho_ten}")
-    st.markdown(f"**Chi nhánh hiện tại:** {active_cn}")
-    st.markdown(f"**Quyền:** {user.get('role','')}")
-    st.markdown(f"**Số chi nhánh được phân:** {len(accessible)}")
+    from modules.ban_hang import module_ban_hang
+    module_ban_hang()
 
 elif tab_choice == "📋 Lịch sử":
     st.info("📋 Lịch sử hóa đơn — sẽ build ở **Bước 4**.")
