@@ -23,6 +23,70 @@ st.set_page_config(
 )
 
 
+# ════════════════════════════════════════════════════════════════
+# NUMERIC KEYBOARD GLOBAL — MutationObserver inject inputmode
+# ════════════════════════════════════════════════════════════════
+# Cách hoạt động:
+#   - Mọi input/textarea nằm trong container có class chứa "st-key-numkb-*"
+#     sẽ tự được set inputmode="numeric" ngay khi xuất hiện trong DOM.
+#   - Vì là MutationObserver chạy ở document level, fix được vấn đề
+#     "lần đầu vào trang bàn phím chữ".
+#   - Có suffix "-tel" thì dùng inputmode="tel" (cho SĐT).
+import streamlit.components.v1 as _components
+
+_components.html("""
+<script>
+(function() {
+    if (window.__numkb_observer_installed) return;
+    window.__numkb_observer_installed = true;
+
+    var doc = window.parent.document;
+
+    function applyNumericMode(input) {
+        if (!input || input.__numkb_applied) return;
+        // Tìm container cha có class .st-key-numkb-* hoặc .st-key-numkb-tel-*
+        var container = input.closest('[class*="st-key-numkb"]');
+        if (!container) return;
+
+        var isTel = container.className.indexOf('st-key-numkb-tel') !== -1;
+        input.setAttribute('inputmode', isTel ? 'tel' : 'numeric');
+        input.setAttribute('pattern', '[0-9]*');
+        input.setAttribute('autocomplete', 'off');
+        input.__numkb_applied = true;
+    }
+
+    // Quét lần đầu (cho trường hợp DOM đã có sẵn input)
+    function scanAll() {
+        var inputs = doc.querySelectorAll(
+            '[class*="st-key-numkb"] input, [class*="st-key-numkb"] textarea'
+        );
+        inputs.forEach(applyNumericMode);
+    }
+
+    // Observer: phát hiện input mới → apply ngay
+    var observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(m) {
+            m.addedNodes.forEach(function(node) {
+                if (node.nodeType !== 1) return;
+                if (node.tagName === 'INPUT' || node.tagName === 'TEXTAREA') {
+                    applyNumericMode(node);
+                }
+                // Quét cả con cháu
+                if (node.querySelectorAll) {
+                    var inner = node.querySelectorAll('input, textarea');
+                    inner.forEach(applyNumericMode);
+                }
+            });
+        });
+    });
+
+    observer.observe(doc.body, {childList: true, subtree: true});
+    scanAll();
+})();
+</script>
+""", height=0)
+
+
 # ── Mobile-first CSS ──
 st.markdown("""
 <style>
