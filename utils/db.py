@@ -62,6 +62,72 @@ def load_pin(nhan_vien_id: int) -> str | None:
         return None
 
 
+# ── Load danh sách hàng hóa + tồn kho cho POS ──
+@st.cache_data(ttl=300)
+def load_hang_hoa_pos(chi_nhanh: str) -> list[dict]:
+    """
+    Load tất cả hàng hóa active có giá > 0, kèm tồn kho tại chi_nhanh.
+    Cache 5 phút.
+
+    Returns: list of dict {ma_hang, ma_vach, ten_hang, gia_ban, ton}
+    """
+    try:
+        # 1. Load master hàng hóa active có giá > 0
+        rows, batch, offset = [], 1000, 0
+        while True:
+            res = supabase.table("hang_hoa") \
+                .select("ma_hang,ma_vach,ten_hang,gia_ban") \
+                .neq("active", False) \
+                .gt("gia_ban", 0) \
+                .range(offset, offset + batch - 1).execute()
+            if not res.data:
+                break
+            rows.extend(res.data)
+            if len(res.data) < batch:
+                break
+            offset += batch
+
+        if not rows:
+            return []
+
+        # 2. Load tồn kho chi nhánh
+        ton_rows, batch, offset = [], 1000, 0
+        while True:
+            res = supabase.table("the_kho") \
+                .select('"Mã hàng","Tồn cuối kì"') \
+                .eq("Chi nhánh", chi_nhanh) \
+                .range(offset, offset + batch - 1).execute()
+            if not res.data:
+                break
+            ton_rows.extend(res.data)
+            if len(res.data) < batch:
+                break
+            offset += batch
+
+        # Map: ma_hang -> tồn (cộng dồn nếu có nhiều dòng)
+        ton_map = {}
+        for r in ton_rows:
+            mh = str(r.get("Mã hàng", "")).strip()
+            ton = int(r.get("Tồn cuối kì", 0) or 0)
+            ton_map[mh] = ton_map.get(mh, 0) + ton
+
+        # 3. Merge tồn vào danh sách hàng hóa
+        result = []
+        for r in rows:
+            ma = str(r.get("ma_hang", "")).strip()
+            result.append({
+                "ma_hang":  ma,
+                "ma_vach":  str(r.get("ma_vach", "") or "").strip(),
+                "ten_hang": str(r.get("ten_hang", "") or ""),
+                "gia_ban":  int(r.get("gia_ban", 0) or 0),
+                "ton":      ton_map.get(ma, 0),
+            })
+        return result
+    except Exception as e:
+        st.error(f"Lỗi tải hàng hóa: {e}")
+        return []
+
+
 # ── Set PIN lần đầu ──
 def set_pin(nhan_vien_id: int, pin_hash: str) -> bool:
     """Insert hoặc update pin_code cho NV."""
