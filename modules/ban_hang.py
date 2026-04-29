@@ -9,8 +9,6 @@ UI flow:
 - Footer: tạm tính + nút "TIẾP TỤC →" sang màn 3
 """
 
-import re
-
 import streamlit as st
 
 from utils.auth import get_active_branch
@@ -23,10 +21,6 @@ from utils.helpers import fmt_vnd
 # ════════════════════════════════════════════════════════════════
 
 CART_KEY = "pos_cart"
-
-
-def _safe_key(text: str) -> str:
-    return re.sub(r"[^a-zA-Z0-9_-]", "_", str(text))
 
 
 def _get_cart() -> list[dict]:
@@ -273,39 +267,6 @@ def _dialog_clear_cart():
 # RENDER — Search section
 # ════════════════════════════════════════════════════════════════
 
-def _inject_mobile_cart_css(zone_key: str):
-    """CSS scoped cho từng dòng hàng trong giỏ trên mobile."""
-    css = """
-    <style>
-    .st-key-__ZONE_KEY__ div[data-testid="stHorizontalBlock"] {
-        flex-direction: row !important;
-        flex-wrap: nowrap !important;
-        align-items: stretch !important;
-        width: 100% !important;
-        max-width: 100% !important;
-        overflow-x: hidden !important;
-        gap: 6px !important;
-    }
-    .st-key-__ZONE_KEY__ div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
-        min-width: 0 !important;
-    }
-    .st-key-__ZONE_KEY__ div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:first-child {
-        flex: 1 1 auto !important;
-    }
-    .st-key-__ZONE_KEY__ div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:last-child {
-        flex: 0 0 44px !important;
-        width: 44px !important;
-        max-width: 44px !important;
-    }
-    .st-key-__ZONE_KEY__ div[data-testid="stButton"] button {
-        width: 100% !important;
-        max-width: 100% !important;
-    }
-    </style>
-    """
-    st.markdown(css.replace("__ZONE_KEY__", zone_key), unsafe_allow_html=True)
-
-
 def _render_search_section():
     """Search expander mở sẵn, max 3 kết quả."""
     chi_nhanh = get_active_branch()
@@ -424,30 +385,26 @@ def _render_cart_line(line: dict):
     thanh_tien = _calc_thanh_tien(line)
     has_giam = line["giam_gia_dong"] > 0
 
-    line_zone_key = f"pos_cart_line_{_safe_key(line['ma_hang'])}"
-    _inject_mobile_cart_css(line_zone_key)
+    col_info, col_x = st.columns([6, 1])
 
-    with st.container(key=line_zone_key):
-        col_info, col_x = st.columns([6, 1])
+    with col_info:
+        # Button label đa dòng — Streamlit hiển thị xuống dòng được
+        suffix = f" (giảm {fmt_vnd(line['giam_gia_dong'])})" if has_giam else ""
+        if st.button(
+            f"{line['ten_hang']}\n"
+            f"SL: {line['so_luong']}  ·  Đơn giá: {fmt_vnd(line['don_gia'])}\n"
+            f"Thành tiền: {fmt_vnd(thanh_tien)}{suffix}",
+            key=f"pos_edit_{line['ma_hang']}",
+            use_container_width=True,
+        ):
+            _dialog_sua_dong(line)
 
-        with col_info:
-            # Button label đa dòng — Streamlit hiển thị xuống dòng được
-            suffix = f" (giảm {fmt_vnd(line['giam_gia_dong'])})" if has_giam else ""
-            if st.button(
-                f"{line['ten_hang']}\n"
-                f"SL: {line['so_luong']}  ·  Đơn giá: {fmt_vnd(line['don_gia'])}\n"
-                f"Thành tiền: {fmt_vnd(thanh_tien)}{suffix}",
-                key=f"pos_edit_{line['ma_hang']}",
-                use_container_width=True,
-            ):
-                _dialog_sua_dong(line)
-
-        with col_x:
-            if st.button("✕", key=f"pos_del_{line['ma_hang']}",
-                         use_container_width=True,
-                         help="Xóa khỏi giỏ"):
-                _remove_from_cart(line["ma_hang"])
-                st.rerun()
+    with col_x:
+        if st.button("✕", key=f"pos_del_{line['ma_hang']}",
+                     use_container_width=True,
+                     help="Xóa khỏi giỏ"):
+            _remove_from_cart(line["ma_hang"])
+            st.rerun()
 
 
 # ════════════════════════════════════════════════════════════════
