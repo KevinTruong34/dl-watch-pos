@@ -186,54 +186,76 @@ initials = _initials(ho_ten)
 cn_short = CN_SHORT.get(active_cn, active_cn[:8])
 accessible = get_accessible_branches()
 
+# CSS scoped → giữ 3 cột header ngang trên mobile
+# (Streamlit mặc định stack columns dọc ở max-width: 640px)
+st.markdown("""
+<style>
+.st-key-header-zone div[data-testid="stHorizontalBlock"] {
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    gap: 8px !important;
+    width: 100% !important;
+}
+.st-key-header-zone div[data-testid="stHorizontalBlock"] > div {
+    min-width: 0 !important;
+}
+@media (max-width: 640px) {
+    .st-key-header-zone div[data-testid="stHorizontalBlock"] {
+        gap: 6px !important;
+    }
+}
+</style>
+""", unsafe_allow_html=True)
+
 # Header bar: Logo | CN | Avatar
-col_logo, col_cn, col_avatar = st.columns([2, 2, 1])
+with st.container(key="header-zone"):
+    col_logo, col_cn, col_avatar = st.columns([2, 2, 1])
 
-with col_logo:
-    st.markdown(
-        "<div style='font-size:1.05rem;font-weight:700;color:#e63946;"
-        "padding-top:8px;'>🛍️ DL POS</div>",
-        unsafe_allow_html=True
-    )
-
-with col_cn:
-    if len(accessible) > 1:
-        with st.popover(f"📍 {cn_short}", use_container_width=True):
-            st.caption("Đổi chi nhánh:")
-            for cn in accessible:
-                is_active = (cn == active_cn)
-                lbl = f"✓ {cn}" if is_active else cn
-                if st.button(
-                    lbl, key=f"sw_cn_{cn}",
-                    use_container_width=True,
-                    type="primary" if is_active else "secondary",
-                    disabled=is_active,
-                ):
-                    st.session_state["active_chi_nhanh"] = cn
-                    _save_branch_localstorage(cn)
-                    # Reset giỏ khi đổi CN — sẽ implement ở bước 2
-                    st.session_state.pop("pos_cart", None)
-                    st.rerun()
-    else:
+    with col_logo:
         st.markdown(
-            f"<div style='font-size:0.88rem;font-weight:600;color:#1a1a2e;"
-            f"padding-top:10px;text-align:center;'>📍 {cn_short}</div>",
+            "<div style='font-size:1.05rem;font-weight:700;color:#e63946;"
+            "padding-top:8px;'>🛍️ DL POS</div>",
             unsafe_allow_html=True
         )
 
-with col_avatar:
-    with st.popover(initials, use_container_width=True):
-        st.markdown(
-            f"<div style='text-align:center;padding:6px 0 4px;'>"
-            f"<div style='font-size:1rem;font-weight:700;'>{ho_ten}</div>"
-            f"<div style='font-size:0.78rem;color:#888;'>{user.get('role','')}</div>"
-            f"</div>",
-            unsafe_allow_html=True
-        )
-        st.markdown("---")
-        if st.button("🚪 Đăng xuất", use_container_width=True, key="logout_btn"):
-            do_logout()
-            st.rerun()
+    with col_cn:
+        if len(accessible) > 1:
+            with st.popover(f"📍 {cn_short}", use_container_width=True):
+                st.caption("Đổi chi nhánh:")
+                for cn in accessible:
+                    is_active = (cn == active_cn)
+                    lbl = f"✓ {cn}" if is_active else cn
+                    if st.button(
+                        lbl, key=f"sw_cn_{cn}",
+                        use_container_width=True,
+                        type="primary" if is_active else "secondary",
+                        disabled=is_active,
+                    ):
+                        st.session_state["active_chi_nhanh"] = cn
+                        _save_branch_localstorage(cn)
+                        # Reset giỏ khi đổi CN — sẽ implement ở bước 2
+                        st.session_state.pop("pos_cart", None)
+                        st.rerun()
+        else:
+            st.markdown(
+                f"<div style='font-size:0.88rem;font-weight:600;color:#1a1a2e;"
+                f"padding-top:10px;text-align:center;'>📍 {cn_short}</div>",
+                unsafe_allow_html=True
+            )
+
+    with col_avatar:
+        with st.popover(initials, use_container_width=True):
+            st.markdown(
+                f"<div style='text-align:center;padding:6px 0 4px;'>"
+                f"<div style='font-size:1rem;font-weight:700;'>{ho_ten}</div>"
+                f"<div style='font-size:0.78rem;color:#888;'>{user.get('role','')}</div>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+            st.markdown("---")
+            if st.button("🚪 Đăng xuất", use_container_width=True, key="logout_btn"):
+                do_logout()
+                st.rerun()
 
 st.markdown("<hr style='margin:6px 0 12px 0;'>", unsafe_allow_html=True)
 
