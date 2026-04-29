@@ -153,3 +153,90 @@ def set_pin(nhan_vien_id: int, pin_hash: str) -> bool:
     except Exception as e:
         st.error(f"Lỗi lưu PIN: {e}")
         return False
+
+
+# ════════════════════════════════════════════════════════════════
+# KHÁCH HÀNG — lookup + tạo mới
+# ════════════════════════════════════════════════════════════════
+
+def lookup_khach_hang_by_sdt(sdt: str) -> dict | None:
+    """
+    Tra cứu khách hàng theo SĐT.
+    Trả về dict {ma_kh, ten_kh, sdt, ...} hoặc None nếu không tìm thấy.
+    """
+    if not sdt or not sdt.strip():
+        return None
+    try:
+        sdt_clean = sdt.strip().replace(" ", "")
+        res = supabase.table("khach_hang").select("*") \
+            .eq("sdt", sdt_clean).limit(1).execute()
+        return res.data[0] if res.data else None
+    except Exception:
+        return None
+
+
+def _gen_ma_akh() -> str:
+    """Sinh mã AKH kế tiếp qua Postgres function."""
+    try:
+        from utils.helpers import now_vn
+        res = supabase.rpc("get_next_akh_num", {}).execute()
+        data = res.data
+        if isinstance(data, list):
+            num = int(data[0]) if data else 1
+        elif data is not None:
+            num = int(data)
+        else:
+            num = 1
+        return f"AKH{num:06d}"
+    except Exception:
+        from utils.helpers import now_vn
+        return f"AKH{now_vn().strftime('%y%m%d%H%M')}"
+
+
+def upsert_khach_hang(ten: str, sdt: str, chi_nhanh: str = "") -> str:
+    """
+    Thêm mới khách nếu SĐT chưa có, hoặc trả về ma_kh nếu đã có.
+    Trả về ma_kh (string), hoặc "" nếu lỗi.
+    """
+    sdt_clean = sdt.strip().replace(" ", "")
+    if not sdt_clean:
+        return ""
+    existing = lookup_khach_hang_by_sdt(sdt_clean)
+    if existing:
+        return existing.get("ma_kh", "")
+    try:
+        from utils.helpers import now_vn_iso
+        ma = _gen_ma_akh()
+        supabase.table("khach_hang").insert({
+            "ma_kh":         ma,
+            "ten_kh":        ten.strip(),
+            "sdt":           sdt_clean,
+            "chi_nhanh_tao": chi_nhanh,
+            "created_at":    now_vn_iso(),
+            "updated_at":    now_vn_iso(),
+        }).execute()
+        return ma
+    except Exception as e:
+        st.error(f"Lỗi tạo khách hàng: {e}")
+        return ""
+
+
+# ════════════════════════════════════════════════════════════════
+# RPC — Tạo hóa đơn POS (atomic)
+# ════════════════════════════════════════════════════════════════
+
+def tao_hoa_don_pos_rpc(payload: dict) -> dict:
+    """
+    Gọi RPC tao_hoa_don_pos.
+    Returns dict: {ok: bool, ma_hd?: str, tien_thua?: int, error?: str}
+    """
+    try:
+        res = supabase.rpc("tao_hoa_don_pos", {"payload": payload}).execute()
+        result = res.data
+        if isinstance(result, list):
+            result = result[0] if result else {}
+        if not isinstance(result, dict):
+            return {"ok": False, "error": "RPC trả về kết quả không hợp lệ"}
+        return result
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
