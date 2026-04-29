@@ -178,7 +178,16 @@ _NUMPAD_CSS = """
 .numpad-zone div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
     flex: 1 1 0 !important;
     min-width: 0 !important;
-    width: auto !important;
+    width: 0 !important;
+    max-width: none !important;
+}
+/* Override Streamlit mobile rule that forces columns to stack */
+@media (max-width: 640px) {
+    .numpad-zone div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+        flex: 1 1 0 !important;
+        width: 0 !important;
+        max-width: none !important;
+    }
 }
 /* Style cho numpad buttons */
 .numpad-zone div[data-testid="stButton"] button {
