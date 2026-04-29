@@ -51,6 +51,7 @@ def _add_to_cart(item: dict):
         "don_gia":       item["gia_ban"],
         "giam_gia_dong": 0,
         "ton_kho":       item["ton"],
+        "loai_sp":       item.get("loai_sp", "Hàng hóa"),
     })
     _save_cart(cart)
 
@@ -97,7 +98,9 @@ def _search_hang_hoa(keyword: str, hh_list: list[dict],
                      max_results: int = 3) -> list[dict]:
     """
     Tìm hàng hóa theo keyword.
-    Ưu tiên: match đầu mã > match đầu tên > match trong mã > match trong tên.
+    Ưu tiên:
+      1. Hàng có tồn (loai_sp = Dịch vụ luôn được coi là còn tồn)
+      2. Trong từng nhóm: match đầu mã > đầu tên > trong mã > trong tên
     Trả về tối đa max_results items.
     """
     if not keyword.strip():
@@ -125,6 +128,10 @@ def _search_hang_hoa(keyword: str, hh_list: list[dict],
             score = 40
 
         if score > 0:
+            # Boost +1000 cho hàng còn tồn → luôn xếp trước hàng hết tồn
+            # (Dịch vụ có ton = 999999 → cũng được boost)
+            if hh["ton"] > 0:
+                score += 1000
             matches.append((score, hh))
 
     matches.sort(key=lambda x: -x[0])
@@ -138,22 +145,31 @@ def _search_hang_hoa(keyword: str, hh_list: list[dict],
 @st.dialog("Chi tiết sản phẩm")
 def _dialog_sua_dong(line: dict):
     """Dialog sửa SL / đơn giá / giảm giá cho 1 dòng giỏ."""
+    is_dich_vu = line.get("loai_sp") == "Dịch vụ"
+
+    # Header
+    if is_dich_vu:
+        ton_label = "🛠 Dịch vụ"
+    else:
+        ton_label = f"Tồn kho: {line['ton_kho']}"
+
     st.markdown(
         f"<div style='font-size:1.05rem;font-weight:700;color:#1a1a2e;'>"
         f"{line['ten_hang']}</div>"
         f"<div style='font-size:0.82rem;color:#888;font-family:monospace;'>"
         f"{line['ma_hang']}</div>"
         f"<div style='font-size:0.82rem;color:#666;margin-top:4px;'>"
-        f"Tồn kho: {line['ton_kho']}</div>",
+        f"{ton_label}</div>",
         unsafe_allow_html=True
     )
 
     st.markdown("<div style='margin-top:14px;'></div>", unsafe_allow_html=True)
 
-    # Số lượng
+    # Số lượng — Dịch vụ không giới hạn theo tồn
     st.markdown("**Số lượng:**")
+    sl_max = 99999 if is_dich_vu else max(1, line["ton_kho"])
     new_sl = st.number_input(
-        "Số lượng", min_value=1, max_value=max(1, line["ton_kho"]),
+        "Số lượng", min_value=1, max_value=sl_max,
         value=line["so_luong"], step=1, key=f"dlg_sl_{line['ma_hang']}",
         label_visibility="collapsed"
     )
@@ -289,7 +305,9 @@ def _render_search_section():
 
 def _render_search_result_card(hh: dict):
     """1 card kết quả search — bấm để thêm vào giỏ (hoặc xám nếu hết hàng)."""
-    is_out_of_stock = hh["ton"] == 0
+    is_dich_vu = hh.get("loai_sp") == "Dịch vụ"
+    # Dịch vụ không bao giờ hết — chỉ hàng hóa mới có thể out of stock
+    is_out_of_stock = (not is_dich_vu) and (hh["ton"] == 0)
 
     if is_out_of_stock:
         st.markdown(
@@ -305,11 +323,13 @@ def _render_search_result_card(hh: dict):
         )
         return
 
-    # Còn hàng → button thêm vào giỏ
-    btn_label = (
-        f"{hh['ten_hang']}\n"
-        f"{hh['ma_hang']} · Tồn: {hh['ton']} · {fmt_vnd(hh['gia_ban'])}"
-    )
+    # Còn hàng (hoặc dịch vụ) → button thêm vào giỏ
+    if is_dich_vu:
+        info_line = f"{hh['ma_hang']} · 🛠 Dịch vụ · {fmt_vnd(hh['gia_ban'])}"
+    else:
+        info_line = f"{hh['ma_hang']} · Tồn: {hh['ton']} · {fmt_vnd(hh['gia_ban'])}"
+
+    btn_label = f"{hh['ten_hang']}\n{info_line}"
     if st.button(
         btn_label,
         key=f"pos_add_{hh['ma_hang']}",
