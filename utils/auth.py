@@ -177,16 +177,16 @@ _NUMPAD_CSS = """
     max-width: 100% !important;
     overflow-x: hidden !important;
 }
-.st-key-__ZONE_KEY__ div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
-    flex: 1 1 calc((100% - 16px) / 3) !important;
+.st-key-__ZONE_KEY__ div[data-testid="stHorizontalBlock"] > div {
+    flex: 0 0 calc((100% - 16px) / 3) !important;
     min-width: 0 !important;
     width: calc((100% - 16px) / 3) !important;
     max-width: calc((100% - 16px) / 3) !important;
 }
 /* Override Streamlit mobile rule that forces columns to stack */
 @media (max-width: 640px) {
-    .st-key-__ZONE_KEY__ div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
-        flex: 1 1 calc((100% - 12px) / 3) !important;
+    .st-key-__ZONE_KEY__ div[data-testid="stHorizontalBlock"] > div {
+        flex: 0 0 calc((100% - 12px) / 3) !important;
         width: calc((100% - 12px) / 3) !important;
         max-width: calc((100% - 12px) / 3) !important;
     }
@@ -203,8 +203,8 @@ _NUMPAD_CSS = """
 /* Mobile - tăng nhẹ kích thước button */
 @media (max-width: 640px) {
     .st-key-__ZONE_KEY__ div[data-testid="stButton"] button {
-        height: 56px !important;
-        font-size: 1.4rem !important;
+        height: 50px !important;
+        font-size: 1.1rem !important;
     }
     .st-key-__ZONE_KEY__ div[data-testid="stHorizontalBlock"] {
         gap: 6px !important;
@@ -262,6 +262,7 @@ def _render_numpad_input(key_prefix: str, max_len: int = 4) -> str:
                                      disabled=(len(current) >= max_len)):
                             st.session_state[pin_key] = current + label
                             st.rerun()
+
 
     return st.session_state[pin_key]
 
