@@ -168,18 +168,20 @@ def _dialog_sua_dong(line: dict):
     # Số lượng — Dịch vụ không giới hạn theo tồn
     st.markdown("**Số lượng:**")
     sl_max = 99999 if is_dich_vu else max(1, line["ton_kho"])
-    new_sl = st.number_input(
-        "Số lượng", min_value=1, max_value=sl_max,
-        value=line["so_luong"], step=1, key=f"dlg_sl_{line['ma_hang']}",
-        label_visibility="collapsed"
-    )
+    with st.container(key=f"numkb-dlg-sl-{line['ma_hang']}"):
+        new_sl = st.number_input(
+            "Số lượng", min_value=1, max_value=sl_max,
+            value=line["so_luong"], step=1, key=f"dlg_sl_{line['ma_hang']}",
+            label_visibility="collapsed"
+        )
 
     # Đơn giá
     st.markdown("**Đơn giá:**")
-    new_dg = st.number_input(
-        "Đơn giá", min_value=0, value=line["don_gia"], step=10000,
-        key=f"dlg_dg_{line['ma_hang']}", label_visibility="collapsed"
-    )
+    with st.container(key=f"numkb-dlg-dg-{line['ma_hang']}"):
+        new_dg = st.number_input(
+            "Đơn giá", min_value=0, value=line["don_gia"], step=10000,
+            key=f"dlg_dg_{line['ma_hang']}", label_visibility="collapsed"
+        )
     if new_dg > 0:
         st.caption(f"= {fmt_vnd(new_dg)}")
 
@@ -194,22 +196,24 @@ def _dialog_sua_dong(line: dict):
     )
 
     if gg_mode == "Số tiền":
-        new_gg = st.number_input(
-            "Giảm (đ)", min_value=0,
-            max_value=new_sl * new_dg,
-            value=line["giam_gia_dong"], step=10000,
-            key=f"dlg_gg_tien_{line['ma_hang']}",
-            label_visibility="collapsed"
-        )
+        with st.container(key=f"numkb-dlg-gg-tien-{line['ma_hang']}"):
+            new_gg = st.number_input(
+                "Giảm (đ)", min_value=0,
+                max_value=new_sl * new_dg,
+                value=line["giam_gia_dong"], step=10000,
+                key=f"dlg_gg_tien_{line['ma_hang']}",
+                label_visibility="collapsed"
+            )
         if new_gg > 0:
             st.caption(f"= {fmt_vnd(new_gg)}")
     else:
-        gg_pct = st.number_input(
-            "Giảm (%)", min_value=0, max_value=100,
-            value=0, step=1,
-            key=f"dlg_gg_pct_{line['ma_hang']}",
-            label_visibility="collapsed"
-        )
+        with st.container(key=f"numkb-dlg-gg-pct-{line['ma_hang']}"):
+            gg_pct = st.number_input(
+                "Giảm (%)", min_value=0, max_value=100,
+                value=0, step=1,
+                key=f"dlg_gg_pct_{line['ma_hang']}",
+                label_visibility="collapsed"
+            )
         new_gg = int(new_sl * new_dg * gg_pct / 100)
         if gg_pct > 0:
             st.caption(f"= {fmt_vnd(new_gg)}")
@@ -444,21 +448,527 @@ def _render_footer():
 
 
 # ════════════════════════════════════════════════════════════════
+# MÀN 3 — THANH TOÁN
+# ════════════════════════════════════════════════════════════════
+
+def _render_man_thanh_toan():
+    """Màn thanh toán — KH / giảm giá / PTTT / xác nhận."""
+    cart = _get_cart()
+    if not cart:
+        # Lỡ vào màn này mà giỏ trống → quay lại
+        st.session_state.pop("pos_step", None)
+        st.rerun()
+        return
+
+    # Header với nút back
+    col_back, col_title = st.columns([1, 4])
+    with col_back:
+        if st.button("←", key="pos3_back",
+                     use_container_width=True,
+                     help="Quay lại bán hàng"):
+            st.session_state.pop("pos_step", None)
+            st.rerun()
+    with col_title:
+        st.markdown(
+            "<div style='font-size:1.1rem;font-weight:700;color:#1a1a2e;"
+            "padding-top:10px;'>💰 Thanh toán</div>",
+            unsafe_allow_html=True
+        )
+
+    st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
+
+    tam_tinh = _calc_tam_tinh(cart)
+
+    # ── Section: Khách hàng ──
+    _render_section_khach_hang()
+
+    # ── Section: Tóm tắt giỏ ──
+    _render_section_tom_tat(cart, tam_tinh)
+
+    # ── Section: Giảm giá tổng đơn ──
+    giam_gia_don = _render_section_giam_gia(tam_tinh)
+
+    # Tính khách cần trả
+    khach_can_tra = max(0, tam_tinh - giam_gia_don)
+
+    # ── Section: Phương thức thanh toán ──
+    pttt = _render_section_pttt(khach_can_tra)
+
+    # ── Footer: Khách cần trả + nút XÁC NHẬN ──
+    _render_footer_thanh_toan(cart, giam_gia_don, khach_can_tra, pttt)
+
+
+# ── Section 1: Khách hàng ──
+
+def _render_section_khach_hang():
+    """SĐT khách → lookup → khách lẻ checkbox."""
+    st.markdown(
+        "<div style='font-size:0.92rem;font-weight:600;color:#1a1a2e;"
+        "margin:6px 0 8px;'>👤 KHÁCH HÀNG</div>",
+        unsafe_allow_html=True
+    )
+
+    is_khach_le = st.checkbox(
+        "Khách lẻ (không cần SĐT)",
+        key="pos3_khach_le",
+        value=False,
+    )
+
+    if is_khach_le:
+        # Khách lẻ → bỏ qua SĐT
+        st.session_state["pos3_kh_data"] = {
+            "ma_kh":  None,
+            "ten_kh": "Khách lẻ",
+            "sdt":    "",
+            "is_new": False,
+        }
+        return
+
+    # Container key bắt đầu bằng "numkb-tel-" → MutationObserver set inputmode="tel"
+    with st.container(key="numkb-tel-pos3-sdt"):
+        sdt = st.text_input(
+            "Số điện thoại:",
+            placeholder="0xxx xxx xxx",
+            key="pos3_sdt_input",
+            max_chars=15,
+        )
+
+    sdt_clean = (sdt or "").strip().replace(" ", "")
+
+    if not sdt_clean:
+        st.session_state["pos3_kh_data"] = {
+            "ma_kh":  None,
+            "ten_kh": "",
+            "sdt":    "",
+            "is_new": False,
+        }
+        return
+
+    # Lookup khi có SĐT — cache theo session để không query mỗi lần rerun
+    last_lookup = st.session_state.get("pos3_last_lookup_sdt", "")
+    if sdt_clean != last_lookup:
+        from utils.db import lookup_khach_hang_by_sdt
+        kh = lookup_khach_hang_by_sdt(sdt_clean)
+        st.session_state["pos3_last_lookup_sdt"] = sdt_clean
+        st.session_state["pos3_lookup_result"]   = kh
+
+    kh = st.session_state.get("pos3_lookup_result")
+
+    if kh:
+        # Khách cũ
+        st.success(f"✓ {kh['ten_kh']}")
+        st.session_state["pos3_kh_data"] = {
+            "ma_kh":  kh.get("ma_kh"),
+            "ten_kh": kh.get("ten_kh", ""),
+            "sdt":    sdt_clean,
+            "is_new": False,
+        }
+    else:
+        # Khách mới — yêu cầu nhập tên
+        st.caption("⚠️ SĐT chưa có — sẽ tạo khách mới khi xác nhận")
+        ten_moi = st.text_input(
+            "Tên khách:",
+            placeholder="Nhập tên khách hàng",
+            key="pos3_ten_moi",
+        )
+        st.session_state["pos3_kh_data"] = {
+            "ma_kh":  None,
+            "ten_kh": (ten_moi or "").strip(),
+            "sdt":    sdt_clean,
+            "is_new": True,
+        }
+
+
+# ── Section 2: Tóm tắt giỏ ──
+
+def _render_section_tom_tat(cart: list[dict], tam_tinh: int):
+    st.markdown(
+        "<div style='font-size:0.92rem;font-weight:600;color:#1a1a2e;"
+        "margin:14px 0 6px;'>🛒 TÓM TẮT GIỎ</div>",
+        unsafe_allow_html=True
+    )
+
+    items_html = ""
+    for line in cart:
+        sl = line["so_luong"]
+        thanh_tien = _calc_thanh_tien(line)
+        items_html += (
+            f"<div style='display:flex;justify-content:space-between;"
+            f"font-size:0.88rem;padding:3px 0;'>"
+            f"<div style='flex:1;color:#1a1a2e;'>{line['ten_hang']} "
+            f"<span style='color:#888;'>×{sl}</span></div>"
+            f"<div style='color:#1a1a2e;font-weight:600;white-space:nowrap;'>"
+            f"{fmt_vnd(thanh_tien)}</div>"
+            f"</div>"
+        )
+
+    st.markdown(
+        f"<div style='background:#fff;border:1px solid #e8e8e8;"
+        f"border-radius:10px;padding:10px 12px;'>"
+        f"{items_html}"
+        f"<hr style='border:none;border-top:1px dashed #ddd;margin:6px 0;'>"
+        f"<div style='display:flex;justify-content:space-between;"
+        f"font-size:0.92rem;'>"
+        f"<span style='color:#555;'>Tạm tính:</span>"
+        f"<span style='font-weight:700;color:#1a1a2e;'>{fmt_vnd(tam_tinh)}</span>"
+        f"</div></div>",
+        unsafe_allow_html=True
+    )
+
+
+# ── Section 3: Giảm giá tổng đơn ──
+
+def _render_section_giam_gia(tam_tinh: int) -> int:
+    """Trả về số tiền giảm (đã quy về VND)."""
+    st.markdown(
+        "<div style='font-size:0.92rem;font-weight:600;color:#1a1a2e;"
+        "margin:14px 0 6px;'>🏷️ GIẢM GIÁ TỔNG ĐƠN</div>",
+        unsafe_allow_html=True
+    )
+
+    gg_mode = st.radio(
+        "Loại giảm giá tổng đơn",
+        ["Số tiền", "Phần %"],
+        horizontal=True,
+        key="pos3_gg_mode",
+        label_visibility="collapsed",
+    )
+
+    if gg_mode == "Số tiền":
+        with st.container(key="numkb-pos3-gg-tien"):
+            gg = st.number_input(
+                "Giảm (đ)", min_value=0, max_value=tam_tinh,
+                value=0, step=10000,
+                key="pos3_gg_tien",
+                label_visibility="collapsed"
+            )
+        if gg > 0:
+            st.caption(f"= {fmt_vnd(gg)}")
+        return int(gg)
+    else:
+        with st.container(key="numkb-pos3-gg-pct"):
+            pct = st.number_input(
+                "Giảm (%)", min_value=0, max_value=100,
+                value=0, step=1,
+                key="pos3_gg_pct",
+                label_visibility="collapsed"
+            )
+        gg = int(tam_tinh * pct / 100)
+        if pct > 0:
+            st.caption(f"= {fmt_vnd(gg)}")
+        return gg
+
+
+# ── Section 4: Phương thức thanh toán ──
+
+def _render_section_pttt(khach_can_tra: int) -> dict:
+    """
+    Trả về dict {tien_mat, chuyen_khoan, the}.
+    """
+    st.markdown(
+        "<div style='font-size:0.92rem;font-weight:600;color:#1a1a2e;"
+        "margin:14px 0 6px;'>💳 PHƯƠNG THỨC THANH TOÁN</div>",
+        unsafe_allow_html=True
+    )
+
+    chia_nhieu = st.checkbox(
+        "Chia nhiều phương thức",
+        key="pos3_chia_nhieu",
+        value=False,
+    )
+
+    if not chia_nhieu:
+        # 3 nút radio đơn giản
+        pttt_chon = st.radio(
+            "Chọn PTTT",
+            ["💵 Tiền mặt", "🏦 Chuyển khoản", "💳 Thẻ"],
+            horizontal=True,
+            key="pos3_pttt_radio",
+            label_visibility="collapsed",
+        )
+        return {
+            "tien_mat":     khach_can_tra if pttt_chon == "💵 Tiền mặt" else 0,
+            "chuyen_khoan": khach_can_tra if pttt_chon == "🏦 Chuyển khoản" else 0,
+            "the":          khach_can_tra if pttt_chon == "💳 Thẻ" else 0,
+        }
+
+    # Chia nhiều → 3 ô nhập
+    st.markdown("<div style='font-size:0.82rem;color:#666;margin:4px 0;'>"
+                "💵 Tiền mặt:</div>", unsafe_allow_html=True)
+    with st.container(key="numkb-pos3-tm"):
+        tm = st.number_input(
+            "Tiền mặt", min_value=0, value=0, step=10000,
+            key="pos3_tm", label_visibility="collapsed"
+        )
+    if tm > 0:
+        st.caption(f"= {fmt_vnd(tm)}")
+
+    st.markdown("<div style='font-size:0.82rem;color:#666;margin:4px 0;'>"
+                "🏦 Chuyển khoản:</div>", unsafe_allow_html=True)
+    with st.container(key="numkb-pos3-ck"):
+        ck = st.number_input(
+            "Chuyển khoản", min_value=0, value=0, step=10000,
+            key="pos3_ck", label_visibility="collapsed"
+        )
+    if ck > 0:
+        st.caption(f"= {fmt_vnd(ck)}")
+
+    st.markdown("<div style='font-size:0.82rem;color:#666;margin:4px 0;'>"
+                "💳 Thẻ:</div>", unsafe_allow_html=True)
+    with st.container(key="numkb-pos3-the"):
+        the = st.number_input(
+            "Thẻ", min_value=0, value=0, step=10000,
+            key="pos3_the", label_visibility="collapsed"
+        )
+    if the > 0:
+        st.caption(f"= {fmt_vnd(the)}")
+
+    tong_pttt = int(tm) + int(ck) + int(the)
+    if tong_pttt > 0 or khach_can_tra > 0:
+        lech = tong_pttt - khach_can_tra
+        if lech == 0:
+            st.success(f"✓ Đủ tiền: {fmt_vnd(tong_pttt)}")
+        elif lech > 0:
+            st.info(f"Khách trả: {fmt_vnd(tong_pttt)} · "
+                    f"Tiền thừa: **{fmt_vnd(lech)}**")
+        else:
+            st.warning(f"Khách trả: {fmt_vnd(tong_pttt)} · "
+                       f"Còn thiếu: **{fmt_vnd(-lech)}**")
+
+    return {"tien_mat": int(tm), "chuyen_khoan": int(ck), "the": int(the)}
+
+
+# ── Footer: Khách cần trả + Xác nhận ──
+
+def _render_footer_thanh_toan(cart: list[dict], giam_gia_don: int,
+                                khach_can_tra: int, pttt: dict):
+    st.markdown("<hr style='margin:14px 0 8px;'>", unsafe_allow_html=True)
+
+    # Card "Khách cần trả" lớn
+    st.markdown(
+        f"<div style='background:#fff8f8;border:2px solid #e63946;"
+        f"border-radius:10px;padding:12px 14px;margin-bottom:12px;'>"
+        f"<div style='font-size:0.82rem;color:#888;'>Khách cần trả:</div>"
+        f"<div style='font-size:1.5rem;font-weight:700;color:#e63946;'>"
+        f"{fmt_vnd(khach_can_tra)}</div>"
+        f"</div>",
+        unsafe_allow_html=True
+    )
+
+    # Validate trước khi enable nút
+    kh_data = st.session_state.get("pos3_kh_data", {})
+    tong_pttt = pttt["tien_mat"] + pttt["chuyen_khoan"] + pttt["the"]
+
+    error_msgs = []
+    if not kh_data:
+        error_msgs.append("Vui lòng nhập thông tin khách")
+    elif kh_data.get("is_new") and not kh_data.get("ten_kh"):
+        error_msgs.append("Vui lòng nhập tên khách mới")
+    if tong_pttt < khach_can_tra:
+        error_msgs.append(f"Cần thêm {fmt_vnd(khach_can_tra - tong_pttt)}")
+
+    can_submit = len(error_msgs) == 0
+
+    if st.button(
+        "✓ XÁC NHẬN HÓA ĐƠN",
+        type="primary",
+        use_container_width=True,
+        disabled=not can_submit,
+        key="pos3_submit",
+        help=" · ".join(error_msgs) if error_msgs else None,
+    ):
+        _xu_ly_xac_nhan(cart, giam_gia_don, pttt, kh_data)
+
+
+# ── Xử lý xác nhận: tạo khách mới (nếu cần) → gọi RPC → chuyển sang màn success ──
+
+def _xu_ly_xac_nhan(cart: list[dict], giam_gia_don: int,
+                     pttt: dict, kh_data: dict):
+    from utils.db import upsert_khach_hang, tao_hoa_don_pos_rpc
+    from utils.auth import get_user, get_active_branch
+
+    user      = get_user() or {}
+    chi_nhanh = get_active_branch()
+
+    with st.spinner("Đang tạo hóa đơn..."):
+        # 1. Tạo khách mới nếu cần
+        ma_kh = kh_data.get("ma_kh") or None
+        if kh_data.get("is_new") and kh_data.get("sdt"):
+            new_ma_kh = upsert_khach_hang(
+                kh_data.get("ten_kh", ""),
+                kh_data.get("sdt", ""),
+                chi_nhanh,
+            )
+            if new_ma_kh:
+                ma_kh = new_ma_kh
+
+        # 2. Build payload cho RPC
+        items_payload = []
+        for line in cart:
+            items_payload.append({
+                "ma_hang":       line["ma_hang"],
+                "ten_hang":      line["ten_hang"],
+                "so_luong":      int(line["so_luong"]),
+                "don_gia":       int(line["don_gia"]),
+                "giam_gia_dong": int(line["giam_gia_dong"]),
+            })
+
+        payload = {
+            "chi_nhanh":    chi_nhanh,
+            "ma_kh":        ma_kh,
+            "ten_khach":    kh_data.get("ten_kh", ""),
+            "sdt_khach":    kh_data.get("sdt", ""),
+            "giam_gia_don": int(giam_gia_don),
+            "tien_mat":     int(pttt.get("tien_mat", 0)),
+            "chuyen_khoan": int(pttt.get("chuyen_khoan", 0)),
+            "the":          int(pttt.get("the", 0)),
+            "nguoi_ban":    user.get("ho_ten", ""),
+            "nguoi_ban_id": str(user.get("id", "")),
+            "items":        items_payload,
+        }
+
+        # 3. Gọi RPC
+        result = tao_hoa_don_pos_rpc(payload)
+
+    if not result.get("ok"):
+        st.error(f"Lỗi tạo hóa đơn: {result.get('error', 'Lỗi không xác định')}")
+        return
+
+    # 4. Lưu kết quả + chuyển sang màn success
+    st.session_state["pos_last_invoice"] = {
+        "ma_hd":         result.get("ma_hd"),
+        "tien_thua":     int(result.get("tien_thua", 0)),
+        "khach_can_tra": int(sum(_calc_thanh_tien(l) for l in cart)) - giam_gia_don,
+        "ten_khach":     kh_data.get("ten_kh", ""),
+        "sdt_khach":     kh_data.get("sdt", ""),
+        "items":         items_payload,
+        "pttt":          pttt,
+    }
+    # Reset cart + clear màn 3 state
+    _clear_cart()
+    _clear_step3_state()
+    st.session_state["pos_step"] = "success"
+    # Invalidate cache hàng hóa để load tồn mới
+    from utils.db import load_hang_hoa_pos
+    load_hang_hoa_pos.clear()
+    st.rerun()
+
+
+def _clear_step3_state():
+    """Xóa state liên quan màn 3 sau khi xác nhận."""
+    keys = [
+        "pos3_kh_data", "pos3_last_lookup_sdt", "pos3_lookup_result",
+        "pos3_khach_le", "pos3_sdt_input", "pos3_ten_moi",
+        "pos3_gg_mode", "pos3_gg_tien", "pos3_gg_pct",
+        "pos3_chia_nhieu", "pos3_pttt_radio",
+        "pos3_tm", "pos3_ck", "pos3_the",
+    ]
+    for k in keys:
+        st.session_state.pop(k, None)
+
+
+# ════════════════════════════════════════════════════════════════
+# MÀN SUCCESS — sau khi tạo HĐ thành công
+# ════════════════════════════════════════════════════════════════
+
+def _render_man_success():
+    """Màn xác nhận thành công — user chủ động bấm 'Hóa đơn mới'."""
+    inv = st.session_state.get("pos_last_invoice")
+    if not inv:
+        st.session_state.pop("pos_step", None)
+        st.rerun()
+        return
+
+    # Big check mark
+    st.markdown(
+        "<div style='text-align:center;padding:20px 0 10px;'>"
+        "<div style='font-size:4rem;'>✓</div>"
+        "<div style='font-size:1.3rem;font-weight:700;color:#1a7f37;"
+        "margin-top:6px;'>Tạo hóa đơn thành công</div>"
+        f"<div style='font-size:1rem;font-family:monospace;color:#555;"
+        f"margin-top:8px;'>{inv['ma_hd']}</div>"
+        "</div>",
+        unsafe_allow_html=True
+    )
+
+    # Tóm tắt
+    rows = [
+        ("Khách hàng", inv.get("ten_khach") or "Khách lẻ"),
+    ]
+    if inv.get("sdt_khach"):
+        rows.append(("SĐT", inv["sdt_khach"]))
+    rows.append(("Khách cần trả", fmt_vnd(inv["khach_can_tra"])))
+
+    pttt = inv.get("pttt", {})
+    if pttt.get("tien_mat", 0) > 0:
+        rows.append(("💵 Tiền mặt", fmt_vnd(pttt["tien_mat"])))
+    if pttt.get("chuyen_khoan", 0) > 0:
+        rows.append(("🏦 Chuyển khoản", fmt_vnd(pttt["chuyen_khoan"])))
+    if pttt.get("the", 0) > 0:
+        rows.append(("💳 Thẻ", fmt_vnd(pttt["the"])))
+
+    summary_html = "<div style='background:#fff;border:1px solid #e8e8e8;" \
+                   "border-radius:10px;padding:12px 14px;margin:14px 0;'>"
+    for lbl, val in rows:
+        summary_html += (
+            f"<div style='display:flex;justify-content:space-between;"
+            f"padding:4px 0;font-size:0.92rem;'>"
+            f"<span style='color:#777;'>{lbl}:</span>"
+            f"<span style='color:#1a1a2e;font-weight:600;'>{val}</span>"
+            f"</div>"
+        )
+    summary_html += "</div>"
+    st.markdown(summary_html, unsafe_allow_html=True)
+
+    # Tiền thừa nổi bật
+    if inv.get("tien_thua", 0) > 0:
+        st.markdown(
+            f"<div style='background:#fff8e0;border:2px solid #f0c36d;"
+            f"border-radius:10px;padding:12px 14px;margin:10px 0;'>"
+            f"<div style='font-size:0.82rem;color:#856404;'>💰 Tiền thừa cần trả lại khách:</div>"
+            f"<div style='font-size:1.5rem;font-weight:700;color:#856404;'>"
+            f"{fmt_vnd(inv['tien_thua'])}</div>"
+            f"</div>",
+            unsafe_allow_html=True
+        )
+
+    st.markdown("<div style='margin-top:18px;'></div>", unsafe_allow_html=True)
+
+    # Action buttons
+    col_in, col_new = st.columns(2)
+    with col_in:
+        # Placeholder nút in — sẽ kích hoạt khi setup máy in
+        if st.button("🖨 In hóa đơn", use_container_width=True,
+                     key="pos_success_print",
+                     help="Sẽ kích hoạt khi setup máy in xong"):
+            st.toast("Tính năng in đang chờ setup máy in", icon="🛠")
+
+    with col_new:
+        if st.button("➕ Hóa đơn mới", type="primary",
+                     use_container_width=True,
+                     key="pos_success_new"):
+            st.session_state.pop("pos_step", None)
+            st.session_state.pop("pos_last_invoice", None)
+            st.rerun()
+
+
+# ════════════════════════════════════════════════════════════════
 # ENTRY POINT
 # ════════════════════════════════════════════════════════════════
 
 def module_ban_hang():
-    """Màn bán hàng chính — search + giỏ hàng + nút tiếp tục."""
-    # Phase 2A chưa có màn 3 — nếu user lỡ bấm "Tiếp tục" → reset
-    if st.session_state.get("pos_step") == "thanh_toan":
-        st.success("✅ Đã sang màn thanh toán — sẽ build ở **Bước 3**.")
-        st.markdown(f"**Số sản phẩm trong giỏ:** {len(_get_cart())}")
-        st.markdown(f"**Tạm tính:** {fmt_vnd(_calc_tam_tinh(_get_cart()))}")
-        if st.button("← Quay lại bán hàng", key="pos_back_from_step3"):
-            st.session_state.pop("pos_step", None)
-            st.rerun()
+    """Màn bán hàng chính — routing theo pos_step."""
+    step = st.session_state.get("pos_step")
+
+    if step == "thanh_toan":
+        _render_man_thanh_toan()
         return
 
+    if step == "success":
+        _render_man_success()
+        return
+
+    # Mặc định: màn 2 — bán hàng
     _render_search_section()
     st.markdown("<div style='margin-top:8px;'></div>", unsafe_allow_html=True)
     _render_cart_section()
