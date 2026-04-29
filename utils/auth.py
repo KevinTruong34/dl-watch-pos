@@ -168,20 +168,29 @@ def _initials(ho_ten: str) -> str:
 # CSS cho numpad — force horizontal layout cả trên mobile
 _NUMPAD_CSS = """
 <style>
-/* Wrapper class - chỉ apply CSS cho numpad, không ảnh hưởng các columns khác */
-.numpad-zone div[data-testid="stHorizontalBlock"] {
+/* Scoped bằng st.container(key=...) để chỉ apply cho numpad */
+.st-key-__ZONE_KEY__ div[data-testid="stHorizontalBlock"] {
     flex-direction: row !important;
     flex-wrap: nowrap !important;
     gap: 8px !important;
     width: 100% !important;
 }
-.numpad-zone div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+.st-key-__ZONE_KEY__ div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
     flex: 1 1 0 !important;
     min-width: 0 !important;
-    width: auto !important;
+    width: 0 !important;
+    max-width: none !important;
+}
+/* Override Streamlit mobile rule that forces columns to stack */
+@media (max-width: 640px) {
+    .st-key-__ZONE_KEY__ div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+        flex: 1 1 0 !important;
+        width: 0 !important;
+        max-width: none !important;
+    }
 }
 /* Style cho numpad buttons */
-.numpad-zone div[data-testid="stButton"] button {
+.st-key-__ZONE_KEY__ div[data-testid="stButton"] button {
     height: 64px !important;
     font-size: 1.5rem !important;
     font-weight: 600 !important;
@@ -191,11 +200,11 @@ _NUMPAD_CSS = """
 }
 /* Mobile - tăng nhẹ kích thước button */
 @media (max-width: 640px) {
-    .numpad-zone div[data-testid="stButton"] button {
+    .st-key-__ZONE_KEY__ div[data-testid="stButton"] button {
         height: 56px !important;
         font-size: 1.4rem !important;
     }
-    .numpad-zone div[data-testid="stHorizontalBlock"] {
+    .st-key-__ZONE_KEY__ div[data-testid="stHorizontalBlock"] {
         gap: 6px !important;
     }
 }
@@ -228,32 +237,30 @@ def _render_numpad_input(key_prefix: str, max_len: int = 4) -> str:
         unsafe_allow_html=True
     )
 
-    # Inject CSS + open wrapper
-    st.markdown(_NUMPAD_CSS, unsafe_allow_html=True)
-    st.markdown('<div class="numpad-zone">', unsafe_allow_html=True)
+    zone_key = f"{key_prefix}_numpad_zone"
+    st.markdown(_NUMPAD_CSS.replace("__ZONE_KEY__", zone_key), unsafe_allow_html=True)
 
     rows = [["1", "2", "3"], ["4", "5", "6"], ["7", "8", "9"], ["", "0", "⌫"]]
-    for row in rows:
-        cols = st.columns(3)
-        for i, label in enumerate(row):
-            with cols[i]:
-                if label == "":
-                    st.markdown("&nbsp;", unsafe_allow_html=True)
-                elif label == "⌫":
-                    if st.button("⌫", key=f"{key_prefix}_back",
-                                 use_container_width=True):
-                        if len(current) > 0:
-                            st.session_state[pin_key] = current[:-1]
+    with st.container(key=zone_key):
+        for row in rows:
+            cols = st.columns(3)
+            for i, label in enumerate(row):
+                with cols[i]:
+                    if label == "":
+                        st.markdown("&nbsp;", unsafe_allow_html=True)
+                    elif label == "⌫":
+                        if st.button("⌫", key=f"{key_prefix}_back",
+                                     use_container_width=True):
+                            if len(current) > 0:
+                                st.session_state[pin_key] = current[:-1]
+                                st.rerun()
+                    else:
+                        if st.button(label, key=f"{key_prefix}_n{label}",
+                                     use_container_width=True,
+                                     disabled=(len(current) >= max_len)):
+                            st.session_state[pin_key] = current + label
                             st.rerun()
-                else:
-                    if st.button(label, key=f"{key_prefix}_n{label}",
-                                 use_container_width=True,
-                                 disabled=(len(current) >= max_len)):
-                        st.session_state[pin_key] = current + label
-                        st.rerun()
 
-    # Close wrapper
-    st.markdown('</div>', unsafe_allow_html=True)
 
     return st.session_state[pin_key]
 
