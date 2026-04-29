@@ -267,26 +267,43 @@ def _dialog_clear_cart():
 # RENDER — Search section
 # ════════════════════════════════════════════════════════════════
 
-
-
-def _inject_mobile_cart_css():
-    """Giữ các cột cùng hàng trên mobile để nút X không rớt xuống dòng."""
-    st.markdown(
-        """
-        <style>
-        @media (max-width: 768px) {
-            div[data-testid="stHorizontalBlock"] {
-                flex-wrap: nowrap !important;
-                align-items: stretch;
-            }
-            div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
-                min-width: 0 !important;
-            }
+def _inject_mobile_cart_css(zone_key: str):
+    """CSS scoped theo container để giữ layout giỏ hàng ổn định trên mobile."""
+    css = """
+    <style>
+    .st-key-__ZONE_KEY__ div[data-testid="stHorizontalBlock"] {
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        align-items: stretch !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow-x: hidden !important;
+        gap: 8px !important;
+    }
+    .st-key-__ZONE_KEY__ div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+        min-width: 0 !important;
+    }
+    .st-key-__ZONE_KEY__ div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:last-child {
+        flex: 0 0 52px !important;
+        width: 52px !important;
+        max-width: 52px !important;
+    }
+    .st-key-__ZONE_KEY__ div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:first-child {
+        flex: 1 1 auto !important;
+    }
+    @media (max-width: 640px) {
+        .st-key-__ZONE_KEY__ div[data-testid="stHorizontalBlock"] {
+            gap: 6px !important;
         }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+        .st-key-__ZONE_KEY__ div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:last-child {
+            flex: 0 0 46px !important;
+            width: 46px !important;
+            max-width: 46px !important;
+        }
+    }
+    </style>
+    """
+    st.markdown(css.replace("__ZONE_KEY__", zone_key), unsafe_allow_html=True)
 
 
 def _render_search_section():
@@ -481,8 +498,12 @@ def module_ban_hang():
             st.rerun()
         return
 
-    _inject_mobile_cart_css()
     _render_search_section()
     st.markdown("<div style='margin-top:8px;'></div>", unsafe_allow_html=True)
-    _render_cart_section()
+
+    cart_zone_key = "pos_cart_zone"
+    _inject_mobile_cart_css(cart_zone_key)
+    with st.container(key=cart_zone_key):
+        _render_cart_section()
+
     _render_footer()
