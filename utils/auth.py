@@ -274,23 +274,52 @@ def _reset_numpad(key_prefix: str):
 
 
 # ════════════════════════════════════════════════════════════════
+# VERTICAL CENTERING — Đẩy nội dung xuống giữa màn hình
+# ════════════════════════════════════════════════════════════════
+
+def _vertical_spacer(min_vh: int = 12):
+    """
+    Tạo khoảng trống ở đầu để đẩy nội dung xuống giữa.
+    Dùng vh (viewport height) để responsive theo chiều cao màn hình.
+    """
+    st.markdown(
+        f"<div style='min-height:{min_vh}vh;'></div>",
+        unsafe_allow_html=True
+    )
+
+
+# ════════════════════════════════════════════════════════════════
 # LOGIN UI — Bước 1: Chọn NV → Bước 2: PIN → Bước 3: Chi nhánh
 # ════════════════════════════════════════════════════════════════
 
 def _show_step_choose_nv():
-    """Bước 1: Chọn nhân viên."""
+    """Bước 1: Chọn nhân viên — canh giữa theo chiều dọc."""
+    nv_list = load_nhan_vien_active()
+    if not nv_list:
+        st.info("Chưa có nhân viên nào trong hệ thống.")
+        return
+
+    # Spacer động theo số lượng NV để luôn cân giữa:
+    #   ít NV → spacer lớn, nhiều NV → spacer nhỏ
+    n = len(nv_list)
+    if n <= 3:
+        spacer_vh = 20
+    elif n <= 5:
+        spacer_vh = 12
+    elif n <= 8:
+        spacer_vh = 6
+    else:
+        spacer_vh = 2
+
+    _vertical_spacer(spacer_vh)
+
     st.markdown(
-        "<div style='text-align:center;padding:20px 0 10px;'>"
+        "<div style='text-align:center;padding:0 0 16px;'>"
         "<div style='font-size:1.4rem;font-weight:700;color:#1a1a2e;'>DL Watch POS</div>"
         "<div style='font-size:0.9rem;color:#888;margin-top:4px;'>Chọn tài khoản</div>"
         "</div>",
         unsafe_allow_html=True
     )
-
-    nv_list = load_nhan_vien_active()
-    if not nv_list:
-        st.info("Chưa có nhân viên nào trong hệ thống.")
-        return
 
     # Style cho avatar card
     st.markdown("""
@@ -316,8 +345,6 @@ def _show_step_choose_nv():
         ini = _initials(nv["ho_ten"])
         col_btn = st.container()
         with col_btn:
-            # Render card-like button: dùng st.button full width với label HTML không khả thi,
-            # nên đặt markdown card + button bên dưới
             if st.button(
                 f"{ini}    {nv['ho_ten']}",
                 key=f"login_nv_{nv['id']}",
@@ -426,12 +453,23 @@ def _show_step_pin(nv: dict, has_pin: bool):
 
 
 def _show_step_choose_branch():
-    """Bước 3: Chọn chi nhánh (chỉ lần đầu hoặc khi có nhiều quyền)."""
+    """Bước 3: Chọn chi nhánh — canh giữa theo chiều dọc."""
     user = get_user()
     branches = get_accessible_branches()
 
+    # Spacer dynamic theo số CN (thường ít — chỉ 1-3 CN)
+    n = len(branches)
+    if n <= 2:
+        spacer_vh = 22
+    elif n == 3:
+        spacer_vh = 18
+    else:
+        spacer_vh = 12
+
+    _vertical_spacer(spacer_vh)
+
     st.markdown(
-        f"<div style='text-align:center;padding:20px 0 10px;'>"
+        f"<div style='text-align:center;padding:0 0 16px;'>"
         f"<div style='font-size:1.05rem;color:#1a7f37;'>✓ Đăng nhập thành công!</div>"
         f"<div style='font-size:0.92rem;color:#666;margin-top:8px;'>"
         f"Chọn chi nhánh:</div>"
