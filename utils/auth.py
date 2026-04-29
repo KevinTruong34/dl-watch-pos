@@ -165,6 +165,44 @@ def _initials(ho_ten: str) -> str:
     return words[-1][0].upper()
 
 
+# CSS cho numpad — force horizontal layout cả trên mobile
+_NUMPAD_CSS = """
+<style>
+/* Wrapper class - chỉ apply CSS cho numpad, không ảnh hưởng các columns khác */
+.numpad-zone div[data-testid="stHorizontalBlock"] {
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    gap: 8px !important;
+    width: 100% !important;
+}
+.numpad-zone div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    width: auto !important;
+}
+/* Style cho numpad buttons */
+.numpad-zone div[data-testid="stButton"] button {
+    height: 64px !important;
+    font-size: 1.5rem !important;
+    font-weight: 600 !important;
+    border-radius: 12px !important;
+    width: 100% !important;
+    padding: 0 !important;
+}
+/* Mobile - tăng nhẹ kích thước button */
+@media (max-width: 640px) {
+    .numpad-zone div[data-testid="stButton"] button {
+        height: 56px !important;
+        font-size: 1.4rem !important;
+    }
+    .numpad-zone div[data-testid="stHorizontalBlock"] {
+        gap: 6px !important;
+    }
+}
+</style>
+"""
+
+
 def _render_numpad_input(key_prefix: str, max_len: int = 4) -> str:
     """
     Vẽ numpad + ô hiển thị PIN dạng ● ● ○ ○.
@@ -190,18 +228,9 @@ def _render_numpad_input(key_prefix: str, max_len: int = 4) -> str:
         unsafe_allow_html=True
     )
 
-    # Numpad
-    btn_style = """
-    <style>
-    div[data-testid="stButton"] button[kind="secondary"] {
-        height: 60px !important;
-        font-size: 1.4rem !important;
-        font-weight: 600 !important;
-        border-radius: 12px !important;
-    }
-    </style>
-    """
-    st.markdown(btn_style, unsafe_allow_html=True)
+    # Inject CSS + open wrapper
+    st.markdown(_NUMPAD_CSS, unsafe_allow_html=True)
+    st.markdown('<div class="numpad-zone">', unsafe_allow_html=True)
 
     rows = [["1", "2", "3"], ["4", "5", "6"], ["7", "8", "9"], ["", "0", "⌫"]]
     for row in rows:
@@ -222,6 +251,9 @@ def _render_numpad_input(key_prefix: str, max_len: int = 4) -> str:
                                  disabled=(len(current) >= max_len)):
                         st.session_state[pin_key] = current + label
                         st.rerun()
+
+    # Close wrapper
+    st.markdown('</div>', unsafe_allow_html=True)
 
     return st.session_state[pin_key]
 
