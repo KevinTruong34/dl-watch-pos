@@ -383,7 +383,7 @@ def _render_cart_section():
 
     # Header giỏ + nút xóa hết — bọc container để giữ ngang hàng trên mobile
     with st.container(key="cart-header-zone"):
-        col_h, col_clear = st.columns([3, 1])
+        col_h, col_clear = st.columns([3, 2])
         with col_h:
             st.markdown(
                 f"<div style='font-size:1rem;font-weight:700;color:#1a1a2e;"
