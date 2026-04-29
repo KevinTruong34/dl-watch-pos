@@ -168,8 +168,20 @@ def _initials(ho_ten: str) -> str:
 # CSS cho numpad — force horizontal layout cả trên mobile
 _NUMPAD_CSS = """
 <style>
-/* Style chung cho nút bấm Numpad */
-div[data-testid="stButton"] button {
+/* Wrapper class - chỉ apply CSS cho numpad, không ảnh hưởng các columns khác */
+.numpad-zone div[data-testid="stHorizontalBlock"] {
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    gap: 8px !important;
+    width: 100% !important;
+}
+.numpad-zone div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    width: auto !important;
+}
+/* Style cho numpad buttons */
+.numpad-zone div[data-testid="stButton"] button {
     height: 64px !important;
     font-size: 1.5rem !important;
     font-weight: 600 !important;
@@ -177,30 +189,19 @@ div[data-testid="stButton"] button {
     width: 100% !important;
     padding: 0 !important;
 }
-
-/* Mobile - Ép các block có CHÍNH XÁC 3 cột phải nằm ngang */
+/* Mobile - tăng nhẹ kích thước button */
 @media (max-width: 640px) {
-    div[data-testid="stButton"] button {
-        height: 58px !important;
+    .numpad-zone div[data-testid="stButton"] button {
+        height: 56px !important;
         font-size: 1.4rem !important;
     }
-    
-    /* Tìm block ngang mà cột con thứ 3 cũng là cột cuối cùng */
-    div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(3):last-child) {
-        flex-direction: row !important;
-        flex-wrap: nowrap !important;
-        gap: 8px !important;
-    }
-    
-    /* Ép chiều rộng 3 cột chia đều nhau */
-    div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(3):last-child) > div[data-testid="column"] {
-        flex: 1 1 0 !important;
-        min-width: 0 !important;
-        width: 33.33% !important;
+    .numpad-zone div[data-testid="stHorizontalBlock"] {
+        gap: 6px !important;
     }
 }
 </style>
 """
+
 
 def _render_numpad_input(key_prefix: str, max_len: int = 4) -> str:
     """
@@ -227,8 +228,9 @@ def _render_numpad_input(key_prefix: str, max_len: int = 4) -> str:
         unsafe_allow_html=True
     )
 
-    # Inject CSS (Không dùng thẻ div bọc ngoài nữa)
+    # Inject CSS + open wrapper
     st.markdown(_NUMPAD_CSS, unsafe_allow_html=True)
+    st.markdown('<div class="numpad-zone">', unsafe_allow_html=True)
 
     rows = [["1", "2", "3"], ["4", "5", "6"], ["7", "8", "9"], ["", "0", "⌫"]]
     for row in rows:
@@ -249,8 +251,6 @@ def _render_numpad_input(key_prefix: str, max_len: int = 4) -> str:
                                  disabled=(len(current) >= max_len)):
                         st.session_state[pin_key] = current + label
                         st.rerun()
-
-    return st.session_state[pin_key]
 
     # Close wrapper
     st.markdown('</div>', unsafe_allow_html=True)
