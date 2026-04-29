@@ -242,13 +242,14 @@ def _render_numpad_input(key_prefix: str, max_len: int = 4) -> str:
         unsafe_allow_html=True
     )
 
-    # ── 2. Input native (mobile keyboard số) ──
+    # ── 2. Input native (mobile keyboard số qua key prefix numkb) ──
     # Dùng key có suffix counter để reset được khi cần
     rk = st.session_state.get(f"{key_prefix}_input_reset_cnt", 0)
     input_key = f"{key_prefix}_native_input_{rk}"
 
-    # Inject JS đặt inputmode=numeric + autofocus + giới hạn ký tự
-    input_zone_key = f"{key_prefix}_input_zone"
+    # Container key bắt đầu bằng "numkb-" → MutationObserver global trong app.py
+    # sẽ tự apply inputmode="numeric" cho input bên trong
+    input_zone_key = f"numkb-{key_prefix}-input-zone"
     st.markdown(
         """<style>
         .st-key-__INPUT_ZONE__ input {
@@ -271,33 +272,6 @@ def _render_numpad_input(key_prefix: str, max_len: int = 4) -> str:
             label_visibility="collapsed",
             placeholder="• • • •",
         )
-
-    # Inject JS để set inputmode=numeric + autofocus
-    import streamlit.components.v1 as components
-    components.html(
-        """
-        <script>
-        (function() {
-            try {
-                var doc = window.parent.document;
-                // Tìm input trong zone container (theo key)
-                var inputs = doc.querySelectorAll('.st-key-__INPUT_ZONE__ input');
-                if (inputs.length > 0) {
-                    var inp = inputs[0];
-                    inp.setAttribute('inputmode', 'numeric');
-                    inp.setAttribute('pattern', '[0-9]*');
-                    inp.setAttribute('autocomplete', 'off');
-                    // Auto focus nếu chưa có giá trị
-                    if (!inp.value) {
-                        setTimeout(function() { inp.focus(); }, 100);
-                    }
-                }
-            } catch(e) {}
-        })();
-        </script>
-        """.replace("__INPUT_ZONE__", input_zone_key),
-        height=0
-    )
 
     # Filter typed: chỉ giữ chữ số, max max_len
     typed_clean = "".join(c for c in (typed or "") if c.isdigit())[:max_len]
