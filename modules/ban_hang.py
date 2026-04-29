@@ -267,6 +267,28 @@ def _dialog_clear_cart():
 # RENDER — Search section
 # ════════════════════════════════════════════════════════════════
 
+
+
+def _inject_mobile_cart_css():
+    """Giữ các cột cùng hàng trên mobile để nút X không rớt xuống dòng."""
+    st.markdown(
+        """
+        <style>
+        @media (max-width: 768px) {
+            div[data-testid="stHorizontalBlock"] {
+                flex-wrap: nowrap !important;
+                align-items: stretch;
+            }
+            div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+                min-width: 0 !important;
+            }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def _render_search_section():
     """Search expander mở sẵn, max 3 kết quả."""
     chi_nhanh = get_active_branch()
@@ -459,6 +481,7 @@ def module_ban_hang():
             st.rerun()
         return
 
+    _inject_mobile_cart_css()
     _render_search_section()
     st.markdown("<div style='margin-top:8px;'></div>", unsafe_allow_html=True)
     _render_cart_section()
