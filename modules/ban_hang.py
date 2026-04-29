@@ -9,6 +9,8 @@ UI flow:
 - Footer: tạm tính + nút "TIẾP TỤC →" sang màn 3
 """
 
+import re
+
 import streamlit as st
 
 from utils.auth import get_active_branch
@@ -21,6 +23,10 @@ from utils.helpers import fmt_vnd
 # ════════════════════════════════════════════════════════════════
 
 CART_KEY = "pos_cart"
+
+
+def _safe_key(text: str) -> str:
+    return re.sub(r"[^a-zA-Z0-9_-]", "_", str(text))
 
 
 def _get_cart() -> list[dict]:
@@ -268,7 +274,7 @@ def _dialog_clear_cart():
 # ════════════════════════════════════════════════════════════════
 
 def _inject_mobile_cart_css(zone_key: str):
-    """CSS scoped theo container để giữ layout giỏ hàng ổn định trên mobile."""
+    """CSS scoped cho từng dòng hàng trong giỏ trên mobile."""
     css = """
     <style>
     .st-key-__ZONE_KEY__ div[data-testid="stHorizontalBlock"] {
@@ -278,28 +284,22 @@ def _inject_mobile_cart_css(zone_key: str):
         width: 100% !important;
         max-width: 100% !important;
         overflow-x: hidden !important;
-        gap: 8px !important;
+        gap: 6px !important;
     }
     .st-key-__ZONE_KEY__ div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
         min-width: 0 !important;
     }
-    .st-key-__ZONE_KEY__ div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:last-child {
-        flex: 0 0 52px !important;
-        width: 52px !important;
-        max-width: 52px !important;
-    }
     .st-key-__ZONE_KEY__ div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:first-child {
         flex: 1 1 auto !important;
     }
-    @media (max-width: 640px) {
-        .st-key-__ZONE_KEY__ div[data-testid="stHorizontalBlock"] {
-            gap: 6px !important;
-        }
-        .st-key-__ZONE_KEY__ div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:last-child {
-            flex: 0 0 46px !important;
-            width: 46px !important;
-            max-width: 46px !important;
-        }
+    .st-key-__ZONE_KEY__ div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:last-child {
+        flex: 0 0 44px !important;
+        width: 44px !important;
+        max-width: 44px !important;
+    }
+    .st-key-__ZONE_KEY__ div[data-testid="stButton"] button {
+        width: 100% !important;
+        max-width: 100% !important;
     }
     </style>
     """
@@ -424,26 +424,30 @@ def _render_cart_line(line: dict):
     thanh_tien = _calc_thanh_tien(line)
     has_giam = line["giam_gia_dong"] > 0
 
-    col_info, col_x = st.columns([6, 1])
+    line_zone_key = f"pos_cart_line_{_safe_key(line['ma_hang'])}"
+    _inject_mobile_cart_css(line_zone_key)
 
-    with col_info:
-        # Button label đa dòng — Streamlit hiển thị xuống dòng được
-        suffix = f" (giảm {fmt_vnd(line['giam_gia_dong'])})" if has_giam else ""
-        if st.button(
-            f"{line['ten_hang']}\n"
-            f"SL: {line['so_luong']}  ·  Đơn giá: {fmt_vnd(line['don_gia'])}\n"
-            f"Thành tiền: {fmt_vnd(thanh_tien)}{suffix}",
-            key=f"pos_edit_{line['ma_hang']}",
-            use_container_width=True,
-        ):
-            _dialog_sua_dong(line)
+    with st.container(key=line_zone_key):
+        col_info, col_x = st.columns([6, 1])
 
-    with col_x:
-        if st.button("✕", key=f"pos_del_{line['ma_hang']}",
-                     use_container_width=True,
-                     help="Xóa khỏi giỏ"):
-            _remove_from_cart(line["ma_hang"])
-            st.rerun()
+        with col_info:
+            # Button label đa dòng — Streamlit hiển thị xuống dòng được
+            suffix = f" (giảm {fmt_vnd(line['giam_gia_dong'])})" if has_giam else ""
+            if st.button(
+                f"{line['ten_hang']}\n"
+                f"SL: {line['so_luong']}  ·  Đơn giá: {fmt_vnd(line['don_gia'])}\n"
+                f"Thành tiền: {fmt_vnd(thanh_tien)}{suffix}",
+                key=f"pos_edit_{line['ma_hang']}",
+                use_container_width=True,
+            ):
+                _dialog_sua_dong(line)
+
+        with col_x:
+            if st.button("✕", key=f"pos_del_{line['ma_hang']}",
+                         use_container_width=True,
+                         help="Xóa khỏi giỏ"):
+                _remove_from_cart(line["ma_hang"])
+                st.rerun()
 
 
 # ════════════════════════════════════════════════════════════════
@@ -500,10 +504,5 @@ def module_ban_hang():
 
     _render_search_section()
     st.markdown("<div style='margin-top:8px;'></div>", unsafe_allow_html=True)
-
-    cart_zone_key = "pos_cart_zone"
-    _inject_mobile_cart_css(cart_zone_key)
-    with st.container(key=cart_zone_key):
-        _render_cart_section()
-
+    _render_cart_section()
     _render_footer()
