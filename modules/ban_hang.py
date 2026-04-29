@@ -47,17 +47,6 @@ _CART_ROW_CSS = """
 </style>
 """
 
-_POS_UI_CSS = """
-<style>
-.block-container {padding-top: 0.8rem !important; max-width: 900px !important;}
-div[data-testid="stExpander"]{border:1px solid #e7e8ee !important;border-radius:14px !important;background:#fff !important;}
-div[data-testid="stExpander"] details summary p{font-size:1.95rem;font-weight:700;color:#0f172a;}
-.stButton > button{border-radius:12px !important;border:1px solid #e6e8ef !important;background:#fff !important;color:#111827 !important;}
-.stButton > button[kind="primary"]{background:linear-gradient(90deg,#ef3340,#ff2d55) !important;color:#fff !important;border:none !important;font-weight:700 !important;}
-.st-key-cart-card{border:1px solid #e7e8ee;border-radius:14px;background:#fff;padding:0;}
-</style>
-"""
-
 
 def _get_cart() -> list[dict]:
     return st.session_state.get(CART_KEY, [])
@@ -309,14 +298,15 @@ def _dialog_clear_cart():
 
 def _render_search_section():
     """Search expander mở sẵn, max 3 kết quả."""
-    st.markdown(_POS_UI_CSS, unsafe_allow_html=True)
     chi_nhanh = get_active_branch()
     hh_list = load_hang_hoa_pos(chi_nhanh)
 
     cart = _get_cart()
+    # Khi giỏ có hàng → expander tự thu lại để thấy giỏ rõ hơn
     expand_default = len(cart) == 0
 
-    with st.expander("🔎  Tìm hàng hóa", expanded=expand_default):
+    with st.expander("🔍 Tìm hàng hóa", expanded=expand_default):
+        # Reset key counter để clear input sau khi thêm
         rk = st.session_state.get("pos_search_reset_cnt", 0)
         keyword = st.text_input(
             "Search input",
@@ -326,10 +316,14 @@ def _render_search_section():
         )
 
         if not keyword.strip():
-            st.caption(f"📦 {len(hh_list)} sản phẩm — gõ để tìm" if hh_list else "⚠ Chưa có hàng hóa active có giá > 0 trong hệ thống.")
+            if not hh_list:
+                st.caption("⚠ Chưa có hàng hóa active có giá > 0 trong hệ thống.")
+            else:
+                st.caption(f"📦 {len(hh_list)} sản phẩm — gõ để tìm")
             return
 
         results = _search_hang_hoa(keyword, hh_list, max_results=3)
+
         if not results:
             st.caption("Không tìm thấy sản phẩm.")
             return
@@ -423,26 +417,28 @@ def _render_cart_section():
 def _render_cart_line(line: dict):
     """1 dòng trong giỏ — bấm vào card → mở dialog sửa SL/giá/giảm giá."""
     thanh_tien = _calc_thanh_tien(line)
+    has_giam = line["giam_gia_dong"] > 0
 
-    col_info, col_price, col_x = st.columns([1.2, 1, 0.28])
+    col_info, col_x = st.columns([6, 1])
+
     with col_info:
-        st.markdown(f"**{line['ten_hang']}**")
-        st.caption(f"Mã: {line['ma_hang']}")
-        st.caption(f"SL: {line['so_luong']}  ×  {fmt_vnd(line['don_gia'])}")
-    with col_price:
-        st.markdown(
-            f"<div style='text-align:right;font-size:2rem;font-weight:700;padding-top:8px'>{fmt_vnd(thanh_tien)}</div>",
-            unsafe_allow_html=True,
-        )
+        # Button label đa dòng — Streamlit hiển thị xuống dòng được
+        suffix = f" (giảm {fmt_vnd(line['giam_gia_dong'])})" if has_giam else ""
+        if st.button(
+            f"{line['ten_hang']}\n"
+            f"SL: {line['so_luong']}  ·  Đơn giá: {fmt_vnd(line['don_gia'])}\n"
+            f"Thành tiền: {fmt_vnd(thanh_tien)}{suffix}",
+            key=f"pos_edit_{line['ma_hang']}",
+            use_container_width=True,
+        ):
+            _dialog_sua_dong(line)
+
     with col_x:
-        if st.button("✕", key=f"pos_del_{line['ma_hang']}", use_container_width=True):
+        if st.button("✕", key=f"pos_del_{line['ma_hang']}",
+                     use_container_width=True,
+                     help="Xóa khỏi giỏ"):
             _remove_from_cart(line["ma_hang"])
             st.rerun()
-
-    if st.button("Chỉnh sửa", key=f"pos_edit_{line['ma_hang']}", use_container_width=True):
-        _dialog_sua_dong(line)
-
-    st.markdown("<hr style='margin:10px 0;border:none;border-top:1px solid #eff0f3'>", unsafe_allow_html=True)
 
 
 # ════════════════════════════════════════════════════════════════
@@ -452,22 +448,31 @@ def _render_cart_line(line: dict):
 def _render_footer():
     cart = _get_cart()
     tam_tinh = _calc_tam_tinh(cart)
-    so_sp = sum(int(x.get("so_luong", 0)) for x in cart)
 
-    st.markdown("<div style='margin-top:14px'></div>", unsafe_allow_html=True)
+    st.markdown("<hr style='margin:14px 0 8px;'>", unsafe_allow_html=True)
+
+    # Tạm tính card
     st.markdown(
-        f"<div style='background:#fff;border:1px solid #e6e8ef;border-radius:14px;padding:14px 16px;'>"
-        f"<div style='display:flex;justify-content:space-between'><span style='color:#4b5563'>Tạm tính ({so_sp} sản phẩm)</span><span style='font-weight:700;color:#ef3340;font-size:2rem'>{fmt_vnd(tam_tinh)}</span></div>"
-        f"<div style='border-top:1px dashed #e5e7eb;margin:10px 0'></div>"
-        f"<div style='display:flex;justify-content:space-between'><span style='color:#4b5563'>Giảm giá</span><span style='font-weight:600'>0đ</span></div>"
-        f"<div style='border-top:1px dashed #e5e7eb;margin:10px 0'></div>"
-        f"<div style='display:flex;justify-content:space-between'><span style='font-weight:700'>Tổng cộng</span><span style='font-weight:800;color:#ef3340;font-size:2rem'>{fmt_vnd(tam_tinh)}</span></div>"
-        f"</div>",
-        unsafe_allow_html=True,
+        f"<div style='background:#fff;border:1px solid #ffd5d9;border-radius:10px;"
+        f"padding:12px 14px;margin-bottom:10px;'>"
+        f"<div style='display:flex;justify-content:space-between;align-items:center;'>"
+        f"<span style='font-size:0.92rem;color:#555;'>Tạm tính:</span>"
+        f"<span style='font-size:1.3rem;font-weight:700;color:#e63946;'>"
+        f"{fmt_vnd(tam_tinh)}</span>"
+        f"</div></div>",
+        unsafe_allow_html=True
     )
 
+    # Nút tiếp tục
     can_continue = len(cart) > 0
-    if st.button("💳  TIẾP TỤC THANH TOÁN  ➜", type="primary", use_container_width=True, disabled=not can_continue, key="pos_continue_btn"):
+    if st.button(
+        "TIẾP TỤC →",
+        type="primary",
+        use_container_width=True,
+        disabled=not can_continue,
+        key="pos_continue_btn",
+    ):
+        # Sang màn 3 — Bước 3 sẽ implement
         st.session_state["pos_step"] = "thanh_toan"
         st.rerun()
 
