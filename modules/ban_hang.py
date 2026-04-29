@@ -22,21 +22,25 @@ from utils.helpers import fmt_vnd
 
 CART_KEY = "pos_cart"
 
-# CSS scoped cho cart row — force horizontal layout trên mobile
+# CSS scoped cho cart section — force horizontal layout trên mobile
 # (Streamlit mặc định stack cột dọc ở max-width: 640px)
+# Cover 2 zones: header (chứa nút "Xóa hết") và rows (chứa nút "✕")
 _CART_ROW_CSS = """
 <style>
-.st-key-cart-rows-zone div[data-testid="stHorizontalBlock"] {
+.st-key-cart-rows-zone div[data-testid="stHorizontalBlock"],
+.st-key-cart-header-zone div[data-testid="stHorizontalBlock"] {
     flex-direction: row !important;
     flex-wrap: nowrap !important;
     gap: 8px !important;
     width: 100% !important;
 }
-.st-key-cart-rows-zone div[data-testid="stHorizontalBlock"] > div {
+.st-key-cart-rows-zone div[data-testid="stHorizontalBlock"] > div,
+.st-key-cart-header-zone div[data-testid="stHorizontalBlock"] > div {
     min-width: 0 !important;
 }
 @media (max-width: 640px) {
-    .st-key-cart-rows-zone div[data-testid="stHorizontalBlock"] {
+    .st-key-cart-rows-zone div[data-testid="stHorizontalBlock"],
+    .st-key-cart-header-zone div[data-testid="stHorizontalBlock"] {
         gap: 6px !important;
     }
 }
@@ -374,19 +378,23 @@ def _render_search_result_card(hh: dict):
 def _render_cart_section():
     cart = _get_cart()
 
-    # Header giỏ + nút xóa hết
-    col_h, col_clear = st.columns([3, 1])
-    with col_h:
-        st.markdown(
-            f"<div style='font-size:1rem;font-weight:700;color:#1a1a2e;"
-            f"padding-top:6px;'>🛒 Giỏ hàng ({len(cart)})</div>",
-            unsafe_allow_html=True
-        )
-    with col_clear:
-        if cart:
-            if st.button("🗑 Xóa hết", key="pos_clear_cart_btn",
-                         use_container_width=True):
-                _dialog_clear_cart()
+    # Inject CSS 1 lần cho cả section — cover header và rows
+    st.markdown(_CART_ROW_CSS, unsafe_allow_html=True)
+
+    # Header giỏ + nút xóa hết — bọc container để giữ ngang hàng trên mobile
+    with st.container(key="cart-header-zone"):
+        col_h, col_clear = st.columns([3, 1])
+        with col_h:
+            st.markdown(
+                f"<div style='font-size:1rem;font-weight:700;color:#1a1a2e;"
+                f"padding-top:6px;'>🛒 Giỏ hàng ({len(cart)})</div>",
+                unsafe_allow_html=True
+            )
+        with col_clear:
+            if cart:
+                if st.button("🗑 Xóa hết", key="pos_clear_cart_btn",
+                             use_container_width=True):
+                    _dialog_clear_cart()
 
     if not cart:
         st.markdown(
@@ -400,9 +408,7 @@ def _render_cart_section():
         )
         return
 
-    # Inject CSS scoped + bọc loop trong zone container
-    # → giữ nút ✕ ngang hàng với card thông tin trên mobile
-    st.markdown(_CART_ROW_CSS, unsafe_allow_html=True)
+    # Bọc loop trong zone container → giữ nút ✕ ngang hàng với card thông tin
     with st.container(key="cart-rows-zone"):
         for line in cart:
             _render_cart_line(line)
