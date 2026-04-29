@@ -216,17 +216,20 @@ _NUMPAD_CSS = """
 
 def _render_numpad_input(key_prefix: str, max_len: int = 4) -> str:
     """
-    Vẽ numpad + ô hiển thị PIN dạng ● ● ○ ○.
-    Trả về PIN hiện tại (string).
-    Tự động rerun khi user bấm phím.
+    Vẽ ô PIN input native (bàn phím số trên mobile) + numpad button làm backup.
+
+    UX:
+      - Ô input chính: kích hoạt bàn phím số native (inputmode="numeric")
+      - Numpad button bên dưới: backup khi user đóng bàn phím native
+      - Cả 2 cùng cập nhật vào st.session_state[pin_key]
+      - Trả về PIN hiện tại (string)
     """
     pin_key = f"{key_prefix}_pin_value"
     if pin_key not in st.session_state:
         st.session_state[pin_key] = ""
 
+    # ── 1. Hiển thị dots ●●○○ (đẹp) ──
     current = st.session_state[pin_key]
-
-    # Hiển thị dots
     dots = ""
     for i in range(max_len):
         if i < len(current):
@@ -235,10 +238,78 @@ def _render_numpad_input(key_prefix: str, max_len: int = 4) -> str:
             dots += "○ "
     st.markdown(
         f"<div style='text-align:center;font-size:2rem;letter-spacing:8px;"
-        f"margin:20px 0;color:#1a1a2e;'>{dots.strip()}</div>",
+        f"margin:16px 0 10px;color:#1a1a2e;'>{dots.strip()}</div>",
         unsafe_allow_html=True
     )
 
+    # ── 2. Input native (mobile keyboard số) ──
+    # Dùng key có suffix counter để reset được khi cần
+    rk = st.session_state.get(f"{key_prefix}_input_reset_cnt", 0)
+    input_key = f"{key_prefix}_native_input_{rk}"
+
+    # Inject JS đặt inputmode=numeric + autofocus + giới hạn ký tự
+    input_zone_key = f"{key_prefix}_input_zone"
+    st.markdown(
+        """<style>
+        .st-key-__INPUT_ZONE__ input {
+            text-align: center !important;
+            font-size: 1.3rem !important;
+            letter-spacing: 8px !important;
+            font-weight: 600 !important;
+            height: 50px !important;
+        }
+        </style>
+        """.replace("__INPUT_ZONE__", input_zone_key),
+        unsafe_allow_html=True
+    )
+
+    with st.container(key=input_zone_key):
+        typed = st.text_input(
+            "PIN",
+            max_chars=max_len,
+            key=input_key,
+            label_visibility="collapsed",
+            placeholder="• • • •",
+        )
+
+    # Inject JS để set inputmode=numeric + autofocus
+    import streamlit.components.v1 as components
+    components.html(
+        """
+        <script>
+        (function() {
+            try {
+                var doc = window.parent.document;
+                // Tìm input trong zone container (theo key)
+                var inputs = doc.querySelectorAll('.st-key-__INPUT_ZONE__ input');
+                if (inputs.length > 0) {
+                    var inp = inputs[0];
+                    inp.setAttribute('inputmode', 'numeric');
+                    inp.setAttribute('pattern', '[0-9]*');
+                    inp.setAttribute('autocomplete', 'off');
+                    // Auto focus nếu chưa có giá trị
+                    if (!inp.value) {
+                        setTimeout(function() { inp.focus(); }, 100);
+                    }
+                }
+            } catch(e) {}
+        })();
+        </script>
+        """.replace("__INPUT_ZONE__", input_zone_key),
+        height=0
+    )
+
+    # Filter typed: chỉ giữ chữ số, max max_len
+    typed_clean = "".join(c for c in (typed or "") if c.isdigit())[:max_len]
+
+    # Đồng bộ giá trị: nếu input native khác state hiện tại → cập nhật state
+    if typed_clean != current:
+        st.session_state[pin_key] = typed_clean
+        st.rerun()
+
+    current = st.session_state[pin_key]
+
+    # ── 3. Numpad button (backup, dưới input) ──
     zone_key = f"{key_prefix}_numpad_zone"
     st.markdown(_NUMPAD_CSS.replace("__ZONE_KEY__", zone_key), unsafe_allow_html=True)
 
@@ -254,23 +325,37 @@ def _render_numpad_input(key_prefix: str, max_len: int = 4) -> str:
                         if st.button("⌫", key=f"{key_prefix}_back",
                                      use_container_width=True):
                             if len(current) > 0:
-                                st.session_state[pin_key] = current[:-1]
+                                _set_pin_state(key_prefix, current[:-1])
                                 st.rerun()
                     else:
                         if st.button(label, key=f"{key_prefix}_n{label}",
                                      use_container_width=True,
                                      disabled=(len(current) >= max_len)):
-                            st.session_state[pin_key] = current + label
+                            _set_pin_state(key_prefix, current + label)
                             st.rerun()
-
 
     return st.session_state[pin_key]
 
 
+def _set_pin_state(key_prefix: str, new_value: str):
+    """
+    Set PIN state + tăng input reset counter để input native re-render với
+    giá trị mới (cần thiết khi numpad button thay đổi state).
+    """
+    pin_key = f"{key_prefix}_pin_value"
+    st.session_state[pin_key] = new_value
+    # Tăng counter → input native dùng key mới → re-render với placeholder rỗng
+    cnt_key = f"{key_prefix}_input_reset_cnt"
+    st.session_state[cnt_key] = st.session_state.get(cnt_key, 0) + 1
+
+
 def _reset_numpad(key_prefix: str):
-    """Xóa giá trị PIN trên numpad."""
+    """Xóa giá trị PIN + reset input native."""
     pin_key = f"{key_prefix}_pin_value"
     st.session_state[pin_key] = ""
+    # Tăng counter để input native re-render với giá trị rỗng
+    cnt_key = f"{key_prefix}_input_reset_cnt"
+    st.session_state[cnt_key] = st.session_state.get(cnt_key, 0) + 1
 
 
 # ════════════════════════════════════════════════════════════════
