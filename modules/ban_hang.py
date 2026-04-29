@@ -22,6 +22,27 @@ from utils.helpers import fmt_vnd
 
 CART_KEY = "pos_cart"
 
+# CSS scoped cho cart row — force horizontal layout trên mobile
+# (Streamlit mặc định stack cột dọc ở max-width: 640px)
+_CART_ROW_CSS = """
+<style>
+.st-key-cart-rows-zone div[data-testid="stHorizontalBlock"] {
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    gap: 8px !important;
+    width: 100% !important;
+}
+.st-key-cart-rows-zone div[data-testid="stHorizontalBlock"] > div {
+    min-width: 0 !important;
+}
+@media (max-width: 640px) {
+    .st-key-cart-rows-zone div[data-testid="stHorizontalBlock"] {
+        gap: 6px !important;
+    }
+}
+</style>
+"""
+
 
 def _get_cart() -> list[dict]:
     return st.session_state.get(CART_KEY, [])
@@ -379,9 +400,12 @@ def _render_cart_section():
         )
         return
 
-    # Render từng dòng
-    for line in cart:
-        _render_cart_line(line)
+    # Inject CSS scoped + bọc loop trong zone container
+    # → giữ nút ✕ ngang hàng với card thông tin trên mobile
+    st.markdown(_CART_ROW_CSS, unsafe_allow_html=True)
+    with st.container(key="cart-rows-zone"):
+        for line in cart:
+            _render_cart_line(line)
 
 
 def _render_cart_line(line: dict):
