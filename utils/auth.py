@@ -174,19 +174,21 @@ _NUMPAD_CSS = """
     flex-wrap: nowrap !important;
     gap: 8px !important;
     width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
 }
 .st-key-__ZONE_KEY__ div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
-    flex: 1 1 0 !important;
+    flex: 1 1 calc((100% - 16px) / 3) !important;
     min-width: 0 !important;
-    width: 0 !important;
-    max-width: none !important;
+    width: calc((100% - 16px) / 3) !important;
+    max-width: calc((100% - 16px) / 3) !important;
 }
 /* Override Streamlit mobile rule that forces columns to stack */
 @media (max-width: 640px) {
     .st-key-__ZONE_KEY__ div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
-        flex: 1 1 0 !important;
-        width: 0 !important;
-        max-width: none !important;
+        flex: 1 1 calc((100% - 12px) / 3) !important;
+        width: calc((100% - 12px) / 3) !important;
+        max-width: calc((100% - 12px) / 3) !important;
     }
 }
 /* Style cho numpad buttons */
@@ -260,7 +262,6 @@ def _render_numpad_input(key_prefix: str, max_len: int = 4) -> str:
                                      disabled=(len(current) >= max_len)):
                             st.session_state[pin_key] = current + label
                             st.rerun()
-
 
     return st.session_state[pin_key]
 
