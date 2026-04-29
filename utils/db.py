@@ -69,14 +69,18 @@ def load_hang_hoa_pos(chi_nhanh: str) -> list[dict]:
     Load tất cả hàng hóa active có giá > 0, kèm tồn kho tại chi_nhanh.
     Cache 5 phút.
 
-    Returns: list of dict {ma_hang, ma_vach, ten_hang, gia_ban, ton}
+    Phân biệt loai_sp:
+      - "Hàng hóa" → tồn lấy từ the_kho thực tế
+      - "Dịch vụ"  → tồn = 999999 (vô hạn, không cần check)
+
+    Returns: list of dict {ma_hang, ma_vach, ten_hang, gia_ban, ton, loai_sp}
     """
     try:
-        # 1. Load master hàng hóa active có giá > 0
+        # 1. Load master: hàng hóa + dịch vụ active có giá > 0
         rows, batch, offset = [], 1000, 0
         while True:
             res = supabase.table("hang_hoa") \
-                .select("ma_hang,ma_vach,ten_hang,gia_ban") \
+                .select("ma_hang,ma_vach,ten_hang,gia_ban,loai_sp") \
                 .neq("active", False) \
                 .gt("gia_ban", 0) \
                 .range(offset, offset + batch - 1).execute()
@@ -90,7 +94,7 @@ def load_hang_hoa_pos(chi_nhanh: str) -> list[dict]:
         if not rows:
             return []
 
-        # 2. Load tồn kho chi nhánh
+        # 2. Load tồn kho chi nhánh (chỉ cần cho hàng hóa)
         ton_rows, batch, offset = [], 1000, 0
         while True:
             res = supabase.table("the_kho") \
@@ -111,16 +115,23 @@ def load_hang_hoa_pos(chi_nhanh: str) -> list[dict]:
             ton = int(r.get("Tồn cuối kì", 0) or 0)
             ton_map[mh] = ton_map.get(mh, 0) + ton
 
-        # 3. Merge tồn vào danh sách hàng hóa
+        # 3. Merge — phân biệt theo loai_sp
         result = []
         for r in rows:
             ma = str(r.get("ma_hang", "")).strip()
+            loai_sp = str(r.get("loai_sp", "") or "Hàng hóa").strip()
+            # Dịch vụ → tồn vô hạn; Hàng hóa → lấy từ the_kho
+            if loai_sp == "Dịch vụ":
+                ton = 999999
+            else:
+                ton = ton_map.get(ma, 0)
             result.append({
                 "ma_hang":  ma,
                 "ma_vach":  str(r.get("ma_vach", "") or "").strip(),
                 "ten_hang": str(r.get("ten_hang", "") or ""),
                 "gia_ban":  int(r.get("gia_ban", 0) or 0),
-                "ton":      ton_map.get(ma, 0),
+                "ton":      ton,
+                "loai_sp":  loai_sp,
             })
         return result
     except Exception as e:
