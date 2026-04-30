@@ -23,7 +23,6 @@ from utils.helpers import fmt_vnd
 CART_KEY = "pos_cart"
 
 # CSS scoped cho cart section — force horizontal layout trên mobile
-# (Streamlit mặc định stack cột dọc ở max-width: 640px)
 # Cover 2 zones: header (chứa nút "Xóa hết") và rows (chứa nút "✕")
 _CART_ROW_CSS = """
 <style>
@@ -57,11 +56,6 @@ def _save_cart(cart: list[dict]):
 
 
 def _add_to_cart(item: dict):
-    """
-    Thêm 1 sản phẩm vào giỏ.
-    Nếu mã hàng đã có → tăng SL +1.
-    Nếu chưa có → thêm dòng mới với SL = 1.
-    """
     cart = _get_cart()
     ma_hang = item["ma_hang"]
     for line in cart:
@@ -121,13 +115,6 @@ def _normalize(text: str) -> str:
 
 def _search_hang_hoa(keyword: str, hh_list: list[dict],
                      max_results: int = 3) -> list[dict]:
-    """
-    Tìm hàng hóa theo keyword.
-    Ưu tiên:
-      1. Hàng có tồn (loai_sp = Dịch vụ luôn được coi là còn tồn)
-      2. Trong từng nhóm: match đầu mã > đầu tên > trong mã > trong tên
-    Trả về tối đa max_results items.
-    """
     if not keyword.strip():
         return []
     kw = _normalize(keyword)
@@ -153,8 +140,6 @@ def _search_hang_hoa(keyword: str, hh_list: list[dict],
             score = 40
 
         if score > 0:
-            # Boost +1000 cho hàng còn tồn → luôn xếp trước hàng hết tồn
-            # (Dịch vụ có ton = 999999 → cũng được boost)
             if hh["ton"] > 0:
                 score += 1000
             matches.append((score, hh))
@@ -169,10 +154,8 @@ def _search_hang_hoa(keyword: str, hh_list: list[dict],
 
 @st.dialog("Chi tiết sản phẩm")
 def _dialog_sua_dong(line: dict):
-    """Dialog sửa SL / đơn giá / giảm giá cho 1 dòng giỏ."""
     is_dich_vu = line.get("loai_sp") == "Dịch vụ"
 
-    # Header
     if is_dich_vu:
         ton_label = "🛠 Dịch vụ"
     else:
@@ -190,7 +173,6 @@ def _dialog_sua_dong(line: dict):
 
     st.markdown("<div style='margin-top:14px;'></div>", unsafe_allow_html=True)
 
-    # Số lượng — Dịch vụ không giới hạn theo tồn
     st.markdown("**Số lượng:**")
     sl_max = 99999 if is_dich_vu else max(1, line["ton_kho"])
     with st.container(key=f"numkb-dlg-sl-{line['ma_hang']}"):
@@ -200,7 +182,6 @@ def _dialog_sua_dong(line: dict):
             label_visibility="collapsed"
         )
 
-    # Đơn giá
     st.markdown("**Đơn giá:**")
     with st.container(key=f"numkb-dlg-dg-{line['ma_hang']}"):
         new_dg = st.number_input(
@@ -210,7 +191,6 @@ def _dialog_sua_dong(line: dict):
     if new_dg > 0:
         st.caption(f"= {fmt_vnd(new_dg)}")
 
-    # Giảm giá — toggle %/tiền
     st.markdown("**Giảm giá:**")
     gg_mode = st.radio(
         "Loại giảm giá",
@@ -243,7 +223,6 @@ def _dialog_sua_dong(line: dict):
         if gg_pct > 0:
             st.caption(f"= {fmt_vnd(new_gg)}")
 
-    # Thành tiền dự kiến
     thanh_tien_moi = max(0, new_sl * new_dg - new_gg)
     st.markdown("---")
     st.markdown(
@@ -297,16 +276,13 @@ def _dialog_clear_cart():
 # ════════════════════════════════════════════════════════════════
 
 def _render_search_section():
-    """Search expander mở sẵn, max 3 kết quả."""
     chi_nhanh = get_active_branch()
     hh_list = load_hang_hoa_pos(chi_nhanh)
 
     cart = _get_cart()
-    # Khi giỏ có hàng → expander tự thu lại để thấy giỏ rõ hơn
     expand_default = len(cart) == 0
 
     with st.expander("🔍 Tìm hàng hóa", expanded=expand_default):
-        # Reset key counter để clear input sau khi thêm
         rk = st.session_state.get("pos_search_reset_cnt", 0)
         keyword = st.text_input(
             "Search input",
@@ -333,9 +309,7 @@ def _render_search_section():
 
 
 def _render_search_result_card(hh: dict):
-    """1 card kết quả search — bấm để thêm vào giỏ (hoặc xám nếu hết hàng)."""
     is_dich_vu = hh.get("loai_sp") == "Dịch vụ"
-    # Dịch vụ không bao giờ hết — chỉ hàng hóa mới có thể out of stock
     is_out_of_stock = (not is_dich_vu) and (hh["ton"] == 0)
 
     if is_out_of_stock:
@@ -352,7 +326,6 @@ def _render_search_result_card(hh: dict):
         )
         return
 
-    # Còn hàng (hoặc dịch vụ) → button thêm vào giỏ
     if is_dich_vu:
         info_line = f"{hh['ma_hang']} · 🛠 Dịch vụ · {fmt_vnd(hh['gia_ban'])}"
     else:
@@ -365,7 +338,6 @@ def _render_search_result_card(hh: dict):
         use_container_width=True,
     ):
         _add_to_cart(hh)
-        # Reset search input để gõ tìm hàng tiếp theo
         st.session_state["pos_search_reset_cnt"] = \
             st.session_state.get("pos_search_reset_cnt", 0) + 1
         st.rerun()
@@ -378,10 +350,8 @@ def _render_search_result_card(hh: dict):
 def _render_cart_section():
     cart = _get_cart()
 
-    # Inject CSS 1 lần cho cả section — cover header và rows
     st.markdown(_CART_ROW_CSS, unsafe_allow_html=True)
 
-    # Header giỏ + nút xóa hết — bọc container để giữ ngang hàng trên mobile
     with st.container(key="cart-header-zone"):
         col_h, col_clear = st.columns([3, 2])
         with col_h:
@@ -408,21 +378,18 @@ def _render_cart_section():
         )
         return
 
-    # Bọc loop trong zone container → giữ nút ✕ ngang hàng với card thông tin
     with st.container(key="cart-rows-zone"):
         for line in cart:
             _render_cart_line(line)
 
 
 def _render_cart_line(line: dict):
-    """1 dòng trong giỏ — bấm vào card → mở dialog sửa SL/giá/giảm giá."""
     thanh_tien = _calc_thanh_tien(line)
     has_giam = line["giam_gia_dong"] > 0
 
     col_info, col_x = st.columns([6, 1])
 
     with col_info:
-        # Button label đa dòng — Streamlit hiển thị xuống dòng được
         suffix = f" (giảm {fmt_vnd(line['giam_gia_dong'])})" if has_giam else ""
         if st.button(
             f"{line['ten_hang']}\n"
@@ -451,7 +418,6 @@ def _render_footer():
 
     st.markdown("<hr style='margin:14px 0 8px;'>", unsafe_allow_html=True)
 
-    # Tạm tính card
     st.markdown(
         f"<div style='background:#fff;border:1px solid #ffd5d9;border-radius:10px;"
         f"padding:12px 14px;margin-bottom:10px;'>"
@@ -463,7 +429,6 @@ def _render_footer():
         unsafe_allow_html=True
     )
 
-    # Nút tiếp tục
     can_continue = len(cart) > 0
     if st.button(
         "TIẾP TỤC →",
@@ -472,7 +437,6 @@ def _render_footer():
         disabled=not can_continue,
         key="pos_continue_btn",
     ):
-        # Sang màn 3 — Bước 3 sẽ implement
         st.session_state["pos_step"] = "thanh_toan"
         st.rerun()
 
@@ -482,15 +446,12 @@ def _render_footer():
 # ════════════════════════════════════════════════════════════════
 
 def _render_man_thanh_toan():
-    """Màn thanh toán — KH / giảm giá / PTTT / xác nhận."""
     cart = _get_cart()
     if not cart:
-        # Lỡ vào màn này mà giỏ trống → quay lại
         st.session_state.pop("pos_step", None)
         st.rerun()
         return
 
-    # Header với nút back
     col_back, col_title = st.columns([1, 4])
     with col_back:
         if st.button("←", key="pos3_back",
@@ -509,29 +470,18 @@ def _render_man_thanh_toan():
 
     tam_tinh = _calc_tam_tinh(cart)
 
-    # ── Section: Khách hàng ──
     _render_section_khach_hang()
-
-    # ── Section: Tóm tắt giỏ ──
     _render_section_tom_tat(cart, tam_tinh)
-
-    # ── Section: Giảm giá tổng đơn ──
     giam_gia_don = _render_section_giam_gia(tam_tinh)
 
-    # Tính khách cần trả
     khach_can_tra = max(0, tam_tinh - giam_gia_don)
 
-    # ── Section: Phương thức thanh toán ──
     pttt = _render_section_pttt(khach_can_tra)
 
-    # ── Footer: Khách cần trả + nút XÁC NHẬN ──
     _render_footer_thanh_toan(cart, giam_gia_don, khach_can_tra, pttt)
 
 
-# ── Section 1: Khách hàng ──
-
 def _render_section_khach_hang():
-    """SĐT khách → lookup → khách lẻ checkbox."""
     st.markdown(
         "<div style='font-size:0.92rem;font-weight:600;color:#1a1a2e;"
         "margin:6px 0 8px;'>👤 KHÁCH HÀNG</div>",
@@ -545,7 +495,6 @@ def _render_section_khach_hang():
     )
 
     if is_khach_le:
-        # Khách lẻ → bỏ qua SĐT
         st.session_state["pos3_kh_data"] = {
             "ma_kh":  None,
             "ten_kh": "Khách lẻ",
@@ -554,7 +503,6 @@ def _render_section_khach_hang():
         }
         return
 
-    # Container key bắt đầu bằng "numkb-tel-" → MutationObserver set inputmode="tel"
     with st.container(key="numkb-tel-pos3-sdt"):
         sdt = st.text_input(
             "Số điện thoại:",
@@ -574,7 +522,6 @@ def _render_section_khach_hang():
         }
         return
 
-    # Lookup khi có SĐT — cache theo session để không query mỗi lần rerun
     last_lookup = st.session_state.get("pos3_last_lookup_sdt", "")
     if sdt_clean != last_lookup:
         from utils.db import lookup_khach_hang_by_sdt
@@ -585,7 +532,6 @@ def _render_section_khach_hang():
     kh = st.session_state.get("pos3_lookup_result")
 
     if kh:
-        # Khách cũ
         st.success(f"✓ {kh['ten_kh']}")
         st.session_state["pos3_kh_data"] = {
             "ma_kh":  kh.get("ma_kh"),
@@ -594,7 +540,6 @@ def _render_section_khach_hang():
             "is_new": False,
         }
     else:
-        # Khách mới — yêu cầu nhập tên
         st.caption("⚠️ SĐT chưa có — sẽ tạo khách mới khi xác nhận")
         ten_moi = st.text_input(
             "Tên khách:",
@@ -608,8 +553,6 @@ def _render_section_khach_hang():
             "is_new": True,
         }
 
-
-# ── Section 2: Tóm tắt giỏ ──
 
 def _render_section_tom_tat(cart: list[dict], tam_tinh: int):
     st.markdown(
@@ -646,10 +589,7 @@ def _render_section_tom_tat(cart: list[dict], tam_tinh: int):
     )
 
 
-# ── Section 3: Giảm giá tổng đơn ──
-
 def _render_section_giam_gia(tam_tinh: int) -> int:
-    """Trả về số tiền giảm (đã quy về VND)."""
     st.markdown(
         "<div style='font-size:0.92rem;font-weight:600;color:#1a1a2e;"
         "margin:14px 0 6px;'>🏷️ GIẢM GIÁ TỔNG ĐƠN</div>",
@@ -689,12 +629,7 @@ def _render_section_giam_gia(tam_tinh: int) -> int:
         return gg
 
 
-# ── Section 4: Phương thức thanh toán ──
-
 def _render_section_pttt(khach_can_tra: int) -> dict:
-    """
-    Trả về dict {tien_mat, chuyen_khoan, the}.
-    """
     st.markdown(
         "<div style='font-size:0.92rem;font-weight:600;color:#1a1a2e;"
         "margin:14px 0 6px;'>💳 PHƯƠNG THỨC THANH TOÁN</div>",
@@ -708,7 +643,6 @@ def _render_section_pttt(khach_can_tra: int) -> dict:
     )
 
     if not chia_nhieu:
-        # 3 nút radio đơn giản
         pttt_chon = st.radio(
             "Chọn PTTT",
             ["💵 Tiền mặt", "🏦 Chuyển khoản", "💳 Thẻ"],
@@ -722,7 +656,6 @@ def _render_section_pttt(khach_can_tra: int) -> dict:
             "the":          khach_can_tra if pttt_chon == "💳 Thẻ" else 0,
         }
 
-    # Chia nhiều → 3 ô nhập
     st.markdown("<div style='font-size:0.82rem;color:#666;margin:4px 0;'>"
                 "💵 Tiền mặt:</div>", unsafe_allow_html=True)
     with st.container(key="numkb-pos3-tm"):
@@ -768,13 +701,10 @@ def _render_section_pttt(khach_can_tra: int) -> dict:
     return {"tien_mat": int(tm), "chuyen_khoan": int(ck), "the": int(the)}
 
 
-# ── Footer: Khách cần trả + Xác nhận ──
-
 def _render_footer_thanh_toan(cart: list[dict], giam_gia_don: int,
                                 khach_can_tra: int, pttt: dict):
     st.markdown("<hr style='margin:14px 0 8px;'>", unsafe_allow_html=True)
 
-    # Card "Khách cần trả" lớn
     st.markdown(
         f"<div style='background:#fff8f8;border:2px solid #e63946;"
         f"border-radius:10px;padding:12px 14px;margin-bottom:12px;'>"
@@ -785,15 +715,21 @@ def _render_footer_thanh_toan(cart: list[dict], giam_gia_don: int,
         unsafe_allow_html=True
     )
 
-    # Validate trước khi enable nút
+    # ── Validate trước khi enable nút ──
+    is_khach_le = bool(st.session_state.get("pos3_khach_le", False))
     kh_data = st.session_state.get("pos3_kh_data", {})
     tong_pttt = pttt["tien_mat"] + pttt["chuyen_khoan"] + pttt["the"]
 
     error_msgs = []
-    if not kh_data:
-        error_msgs.append("Vui lòng nhập thông tin khách")
-    elif kh_data.get("is_new") and not kh_data.get("ten_kh"):
-        error_msgs.append("Vui lòng nhập tên khách mới")
+
+    # FIX: bắt buộc 1 trong 2 — tick "Khách lẻ" HOẶC nhập SĐT
+    if not is_khach_le:
+        sdt_clean = (kh_data.get("sdt") or "").strip()
+        if not sdt_clean:
+            error_msgs.append("Tick 'Khách lẻ' hoặc nhập SĐT khách")
+        elif kh_data.get("is_new") and not kh_data.get("ten_kh"):
+            error_msgs.append("Nhập tên khách mới")
+
     if tong_pttt < khach_can_tra:
         error_msgs.append(f"Cần thêm {fmt_vnd(khach_can_tra - tong_pttt)}")
 
@@ -810,8 +746,6 @@ def _render_footer_thanh_toan(cart: list[dict], giam_gia_don: int,
         _xu_ly_xac_nhan(cart, giam_gia_don, pttt, kh_data)
 
 
-# ── Xử lý xác nhận: tạo khách mới (nếu cần) → gọi RPC → chuyển sang màn success ──
-
 def _xu_ly_xac_nhan(cart: list[dict], giam_gia_don: int,
                      pttt: dict, kh_data: dict):
     from utils.db import upsert_khach_hang, tao_hoa_don_pos_rpc
@@ -821,7 +755,6 @@ def _xu_ly_xac_nhan(cart: list[dict], giam_gia_don: int,
     chi_nhanh = get_active_branch()
 
     with st.spinner("Đang tạo hóa đơn..."):
-        # 1. Tạo khách mới nếu cần
         ma_kh = kh_data.get("ma_kh") or None
         if kh_data.get("is_new") and kh_data.get("sdt"):
             new_ma_kh = upsert_khach_hang(
@@ -832,7 +765,6 @@ def _xu_ly_xac_nhan(cart: list[dict], giam_gia_don: int,
             if new_ma_kh:
                 ma_kh = new_ma_kh
 
-        # 2. Build payload cho RPC
         items_payload = []
         for line in cart:
             items_payload.append({
@@ -857,14 +789,12 @@ def _xu_ly_xac_nhan(cart: list[dict], giam_gia_don: int,
             "items":        items_payload,
         }
 
-        # 3. Gọi RPC
         result = tao_hoa_don_pos_rpc(payload)
 
     if not result.get("ok"):
         st.error(f"Lỗi tạo hóa đơn: {result.get('error', 'Lỗi không xác định')}")
         return
 
-    # 4. Lưu kết quả + chuyển sang màn success
     st.session_state["pos_last_invoice"] = {
         "ma_hd":         result.get("ma_hd"),
         "tien_thua":     int(result.get("tien_thua", 0)),
@@ -874,18 +804,15 @@ def _xu_ly_xac_nhan(cart: list[dict], giam_gia_don: int,
         "items":         items_payload,
         "pttt":          pttt,
     }
-    # Reset cart + clear màn 3 state
     _clear_cart()
     _clear_step3_state()
     st.session_state["pos_step"] = "success"
-    # Invalidate cache hàng hóa để load tồn mới
     from utils.db import load_hang_hoa_pos
     load_hang_hoa_pos.clear()
     st.rerun()
 
 
 def _clear_step3_state():
-    """Xóa state liên quan màn 3 sau khi xác nhận."""
     keys = [
         "pos3_kh_data", "pos3_last_lookup_sdt", "pos3_lookup_result",
         "pos3_khach_le", "pos3_sdt_input", "pos3_ten_moi",
@@ -902,14 +829,12 @@ def _clear_step3_state():
 # ════════════════════════════════════════════════════════════════
 
 def _render_man_success():
-    """Màn xác nhận thành công — user chủ động bấm 'Hóa đơn mới'."""
     inv = st.session_state.get("pos_last_invoice")
     if not inv:
         st.session_state.pop("pos_step", None)
         st.rerun()
         return
 
-    # Big check mark
     st.markdown(
         "<div style='text-align:center;padding:20px 0 10px;'>"
         "<div style='font-size:4rem;'>✓</div>"
@@ -921,7 +846,6 @@ def _render_man_success():
         unsafe_allow_html=True
     )
 
-    # Tóm tắt
     rows = [
         ("Khách hàng", inv.get("ten_khach") or "Khách lẻ"),
     ]
@@ -950,7 +874,6 @@ def _render_man_success():
     summary_html += "</div>"
     st.markdown(summary_html, unsafe_allow_html=True)
 
-    # Tiền thừa nổi bật
     if inv.get("tien_thua", 0) > 0:
         st.markdown(
             f"<div style='background:#fff8e0;border:2px solid #f0c36d;"
@@ -964,10 +887,8 @@ def _render_man_success():
 
     st.markdown("<div style='margin-top:18px;'></div>", unsafe_allow_html=True)
 
-    # Action buttons
     col_in, col_new = st.columns(2)
     with col_in:
-        # Placeholder nút in — sẽ kích hoạt khi setup máy in
         if st.button("🖨 In hóa đơn", use_container_width=True,
                      key="pos_success_print",
                      help="Sẽ kích hoạt khi setup máy in xong"):
@@ -987,7 +908,6 @@ def _render_man_success():
 # ════════════════════════════════════════════════════════════════
 
 def module_ban_hang():
-    """Màn bán hàng chính — routing theo pos_step."""
     step = st.session_state.get("pos_step")
 
     if step == "thanh_toan":
@@ -998,7 +918,6 @@ def module_ban_hang():
         _render_man_success()
         return
 
-    # Mặc định: màn 2 — bán hàng
     _render_search_section()
     st.markdown("<div style='margin-top:8px;'></div>", unsafe_allow_html=True)
     _render_cart_section()
