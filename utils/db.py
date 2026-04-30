@@ -198,7 +198,8 @@ def upsert_khach_hang(ten: str, sdt: str, chi_nhanh: str = "") -> str:
     Thêm mới khách nếu SĐT chưa có, hoặc trả về ma_kh nếu đã có.
     Trả về ma_kh (string), hoặc "" nếu lỗi.
     """
-    sdt_clean = sdt.strip().replace(" ", "")
+    sdt_clean = clean_phone(sdt)
+    ten_clean = clean_name(ten)
     if not sdt_clean:
         return ""
     existing = lookup_khach_hang_by_sdt(sdt_clean)
@@ -209,7 +210,7 @@ def upsert_khach_hang(ten: str, sdt: str, chi_nhanh: str = "") -> str:
         ma = _gen_ma_akh()
         supabase.table("khach_hang").insert({
             "ma_kh":         ma,
-            "ten_kh":        ten.strip(),
+            "ten_kh":        ten_clean,
             "sdt":           sdt_clean,
             "chi_nhanh_tao": chi_nhanh,
             "created_at":    now_vn_iso(),
@@ -306,3 +307,21 @@ def huy_hoa_don_pos_rpc(ma_hd: str, cancelled_by: str = "") -> dict:
         return result
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+
+# ════════════════════════════════════════════════════════════════
+# VALIDATION HELPERS
+# ════════════════════════════════════════════════════════════════
+
+def clean_phone(s: str) -> str:
+    """Chuẩn hoá SĐT: chỉ giữ chữ số, max 15 ký tự."""
+    if not s:
+        return ""
+    return "".join(c for c in str(s) if c.isdigit())[:15]
+
+
+def clean_name(s: str) -> str:
+    """Trim + thu gọn whitespace liên tiếp + max 100 ký tự."""
+    if not s:
+        return ""
+    return " ".join(str(s).split())[:100]
