@@ -91,6 +91,8 @@ def restore_session(token: str) -> dict | None:
             x["chi_nhanh"]["ten"] for x in (cn_res.data or [])
             if x.get("chi_nhanh")
         ]
+        # Lưu thời điểm session hết hạn để hiển thị banner cảnh báo
+        user["session_expires_at"] = s["expires_at"]
         return user
     except Exception:
         return None
@@ -660,3 +662,48 @@ def run_auth_gate():
             # Hiện màn chọn CN
             _show_step_choose_branch()
             st.stop()
+
+
+# ════════════════════════════════════════════════════════════════
+# SESSION WARNING BANNER
+# ════════════════════════════════════════════════════════════════
+
+def render_session_warning_banner():
+    """
+    Render banner cảnh báo khi session sắp hết hạn (≤30 phút).
+    Gọi sau header trong app.py.
+    """
+    user = get_user()
+    if not user:
+        return
+
+    expires_at_str = user.get("session_expires_at")
+    if not expires_at_str:
+        return
+
+    try:
+        expires = datetime.fromisoformat(expires_at_str)
+        now = now_vn()
+        remaining = (expires - now).total_seconds()
+    except Exception:
+        return
+
+    # Còn ≤30 phút (1800s) → hiện banner
+    if remaining <= 0:
+        return  # Đã hết hạn — sẽ bị logout ở lượt next
+    if remaining > 1800:
+        return  # Còn nhiều, không cần cảnh báo
+
+    minutes = int(remaining // 60)
+    expires_hhmm = expires.strftime("%H:%M")
+
+    st.markdown(
+        f"<div style='background:#fff8e0;border:1px solid #f0c36d;"
+        f"border-radius:8px;padding:8px 12px;margin:4px 0 10px;"
+        f"font-size:0.85rem;color:#856404;'>"
+        f"⚠️ <b>Phiên đăng nhập sắp hết hạn</b> "
+        f"({minutes} phút · đến {expires_hhmm}). "
+        f"Hoàn tất các giao dịch đang dở."
+        f"</div>",
+        unsafe_allow_html=True
+    )
