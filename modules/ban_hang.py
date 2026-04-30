@@ -293,7 +293,16 @@ def _render_search_section():
 
         if not keyword.strip():
             if not hh_list:
-                st.caption("⚠ Chưa có hàng hóa active có giá > 0 trong hệ thống.")
+                # Phân biệt: rỗng thật vs lỗi load
+                st.markdown(
+                    "<div style='background:#fff8e0;border:1px solid #f0c36d;"
+                    "border-radius:8px;padding:10px 12px;margin:8px 0;"
+                    "font-size:0.85rem;color:#856404;'>"
+                    "⚠️ Không tải được danh sách hàng hóa. "
+                    "Kiểm tra kết nối mạng rồi thử lại."
+                    "</div>",
+                    unsafe_allow_html=True
+                )
             else:
                 st.caption(f"📦 {len(hh_list)} sản phẩm — gõ để tìm")
             return
@@ -511,7 +520,8 @@ def _render_section_khach_hang():
             max_chars=15,
         )
 
-    sdt_clean = (sdt or "").strip().replace(" ", "")
+    from utils.db import clean_phone
+    sdt_clean = clean_phone(sdt)
 
     if not sdt_clean:
         st.session_state["pos3_kh_data"] = {
