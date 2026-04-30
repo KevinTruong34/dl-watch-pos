@@ -240,3 +240,69 @@ def tao_hoa_don_pos_rpc(payload: dict) -> dict:
         return result
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+
+# ════════════════════════════════════════════════════════════════
+# LỊCH SỬ HÓA ĐƠN POS
+# ════════════════════════════════════════════════════════════════
+
+def load_hoa_don_pos_history(chi_nhanh: str, from_date_iso: str) -> list[dict]:
+    """
+    Load HĐ POS của 1 chi nhánh từ from_date_iso (>=) tới hiện tại.
+    from_date_iso: 'YYYY-MM-DDT00:00:00+07:00' (tính theo VN time)
+    Trả về list HĐ đã sort newest-first, kèm chi tiết items mỗi HĐ.
+    """
+    try:
+        # 1. Load header
+        res = supabase.table("hoa_don_pos") \
+            .select("*") \
+            .eq("chi_nhanh", chi_nhanh) \
+            .gte("created_at", from_date_iso) \
+            .order("created_at", desc=True) \
+            .limit(500) \
+            .execute()
+
+        headers = res.data or []
+        if not headers:
+            return []
+
+        # 2. Load chi tiết tất cả HĐ này trong 1 query
+        ma_hd_list = [h["ma_hd"] for h in headers]
+        res_ct = supabase.table("hoa_don_pos_ct") \
+            .select("*") \
+            .in_("ma_hd", ma_hd_list) \
+            .execute()
+
+        # Map ma_hd -> list items
+        items_map: dict[str, list] = {}
+        for ct in (res_ct.data or []):
+            items_map.setdefault(ct["ma_hd"], []).append(ct)
+
+        # 3. Merge items vào header
+        for h in headers:
+            h["items"] = items_map.get(h["ma_hd"], [])
+
+        return headers
+    except Exception as e:
+        st.error(f"Lỗi tải lịch sử hóa đơn: {e}")
+        return []
+
+
+def huy_hoa_don_pos_rpc(ma_hd: str, cancelled_by: str = "") -> dict:
+    """
+    Gọi RPC huy_hoa_don_pos — hoàn lại tồn kho + đổi trạng thái sang 'Đã hủy'.
+    Returns dict: {ok: bool, error?: str}
+    """
+    try:
+        res = supabase.rpc("huy_hoa_don_pos", {
+            "p_ma_hd":        ma_hd,
+            "p_cancelled_by": cancelled_by or "",
+        }).execute()
+        result = res.data
+        if isinstance(result, list):
+            result = result[0] if result else {}
+        if not isinstance(result, dict):
+            return {"ok": False, "error": "RPC trả về kết quả không hợp lệ"}
+        return result
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
