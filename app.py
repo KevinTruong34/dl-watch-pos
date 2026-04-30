@@ -5,7 +5,22 @@ Mobile-first Streamlit app for point-of-sale.
 """
 
 import streamlit as st
+import streamlit as st
 
+# Đoạn CSS để ẩn đi cái nút Hosted with Streamlit của Community Cloud
+hide_streamlit_logo = """
+    <style>
+    /* Ẩn nút Manage App và Hosted with Streamlit ở góc dưới phải */
+    [class^="viewerBadge_container"] {
+        display: none !important;
+    }
+    
+    /* Ẩn footer báo 'Made with Streamlit' ở dưới cùng */
+    footer {visibility: hidden;}
+    
+    </style>
+"""
+st.markdown(hide_streamlit_logo, unsafe_allow_html=True)
 from utils.config import APP_NAME, CN_SHORT
 from utils.auth import (
     run_auth_gate, get_user, get_active_branch,
