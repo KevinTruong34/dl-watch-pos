@@ -10,7 +10,7 @@ from utils.config import APP_NAME, CN_SHORT
 from utils.auth import (
     run_auth_gate, get_user, get_active_branch,
     get_accessible_branches, do_logout, _save_branch_localstorage,
-    _initials,
+    _initials, render_session_warning_banner,
 )
 
 
@@ -246,6 +246,12 @@ with st.container(key="header-zone"):
                 st.rerun()
 
 st.markdown("<hr style='margin:6px 0 12px 0;'>", unsafe_allow_html=True)
+
+
+# ════════════════════════════════════════════════════════════════
+# SESSION WARNING — banner nếu sắp hết hạn (≤30 phút)
+# ════════════════════════════════════════════════════════════════
+render_session_warning_banner()
 
 
 # ════════════════════════════════════════════════════════════════
