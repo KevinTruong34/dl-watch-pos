@@ -26,12 +26,6 @@ st.set_page_config(
 # ════════════════════════════════════════════════════════════════
 # NUMERIC KEYBOARD GLOBAL — MutationObserver inject inputmode
 # ════════════════════════════════════════════════════════════════
-# Cách hoạt động:
-#   - Mọi input/textarea nằm trong container có class chứa "st-key-numkb-*"
-#     sẽ tự được set inputmode="numeric" ngay khi xuất hiện trong DOM.
-#   - Vì là MutationObserver chạy ở document level, fix được vấn đề
-#     "lần đầu vào trang bàn phím chữ".
-#   - Có suffix "-tel" thì dùng inputmode="tel" (cho SĐT).
 import streamlit.components.v1 as _components
 
 _components.html("""
@@ -44,7 +38,6 @@ _components.html("""
 
     function applyNumericMode(input) {
         if (!input || input.__numkb_applied) return;
-        // Tìm container cha có class .st-key-numkb-* hoặc .st-key-numkb-tel-*
         var container = input.closest('[class*="st-key-numkb"]');
         if (!container) return;
 
@@ -55,7 +48,6 @@ _components.html("""
         input.__numkb_applied = true;
     }
 
-    // Quét lần đầu (cho trường hợp DOM đã có sẵn input)
     function scanAll() {
         var inputs = doc.querySelectorAll(
             '[class*="st-key-numkb"] input, [class*="st-key-numkb"] textarea'
@@ -63,7 +55,6 @@ _components.html("""
         inputs.forEach(applyNumericMode);
     }
 
-    // Observer: phát hiện input mới → apply ngay
     var observer = new MutationObserver(function(mutations) {
         mutations.forEach(function(m) {
             m.addedNodes.forEach(function(node) {
@@ -71,7 +62,6 @@ _components.html("""
                 if (node.tagName === 'INPUT' || node.tagName === 'TEXTAREA') {
                     applyNumericMode(node);
                 }
-                // Quét cả con cháu
                 if (node.querySelectorAll) {
                     var inner = node.querySelectorAll('input, textarea');
                     inner.forEach(applyNumericMode);
@@ -187,7 +177,6 @@ cn_short = CN_SHORT.get(active_cn, active_cn[:8])
 accessible = get_accessible_branches()
 
 # CSS scoped → giữ 3 cột header ngang trên mobile
-# (Streamlit mặc định stack columns dọc ở max-width: 640px)
 st.markdown("""
 <style>
 .st-key-header-zone div[data-testid="stHorizontalBlock"] {
@@ -233,7 +222,6 @@ with st.container(key="header-zone"):
                     ):
                         st.session_state["active_chi_nhanh"] = cn
                         _save_branch_localstorage(cn)
-                        # Reset giỏ khi đổi CN — sẽ implement ở bước 2
                         st.session_state.pop("pos_cart", None)
                         st.rerun()
         else:
@@ -261,10 +249,9 @@ st.markdown("<hr style='margin:6px 0 12px 0;'>", unsafe_allow_html=True)
 
 
 # ════════════════════════════════════════════════════════════════
-# MAIN — Tabs Bán hàng / Lịch sử (placeholder cho bước 1)
+# MAIN — Tabs Bán hàng / Lịch sử
 # ════════════════════════════════════════════════════════════════
 
-# Tab navigation (sẽ implement ở bước 2/4)
 tab_choice = st.pills(
     "main_nav",
     ["🛒 Bán hàng", "📋 Lịch sử"],
@@ -281,4 +268,5 @@ if tab_choice == "🛒 Bán hàng":
     module_ban_hang()
 
 elif tab_choice == "📋 Lịch sử":
-    st.info("📋 Lịch sử hóa đơn — sẽ build ở **Bước 4**.")
+    from modules.lich_su import module_lich_su
+    module_lich_su()
