@@ -224,7 +224,7 @@ def _dialog_confirm_huy(inv: dict):
                 # Invalidate cache hàng hóa (vì tồn đã thay đổi)
                 from utils.db import load_hang_hoa_pos
                 load_hang_hoa_pos.clear()
-                st.toast(f"Đã hủy {inv['ma_hd']}", icon="✓")
+                st.toast(f"Đã hủy {inv['ma_hd']}", icon="✅")
                 st.rerun()
             else:
                 st.error(f"Lỗi: {result.get('error', 'Không xác định')}")
