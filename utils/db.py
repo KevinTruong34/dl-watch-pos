@@ -324,7 +324,6 @@ def search_hoa_don_pos(keyword: str, chi_nhanh_list: list[str],
         return []
     try:
         q = supabase.table("hoa_don_pos").select("*").in_("chi_nhanh", chi_nhanh_list)
-        # Tìm mã HĐ hoặc SĐT (case-insensitive với ilike)
         q = q.or_(f"ma_hd.ilike.%{kw}%,sdt_khach.ilike.%{kw}%")
         res = q.order("created_at", desc=True).limit(limit).execute()
         headers = res.data or []
@@ -400,7 +399,6 @@ def get_sl_da_tra_map(ma_hd_goc: str) -> dict[str, int]:
     if not ma_hd_goc:
         return out
     try:
-        # Lấy ma_pdt của các phiếu Hoàn thành
         res_h = supabase.table("phieu_doi_tra_pos").select("ma_pdt") \
             .eq("ma_hd_goc", ma_hd_goc) \
             .eq("trang_thai", "Hoàn thành").execute()
@@ -455,6 +453,36 @@ def huy_phieu_doi_tra_pos_rpc(ma_pdt: str, cancelled_by: str = "") -> dict:
         return result
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+
+@st.cache_data(ttl=60)
+def load_phieu_doi_tra_pos_history(chi_nhanh: str, from_date_iso: str) -> list[dict]:
+    """
+    Load phiếu đổi/trả POS của 1 chi nhánh từ from_date_iso, sort newest-first.
+    TTL 60s (ngắn hơn HĐ vì thay đổi thường xuyên hơn).
+    """
+    try:
+        res = supabase.table("phieu_doi_tra_pos") \
+            .select("*") \
+            .eq("chi_nhanh", chi_nhanh) \
+            .gte("created_at", from_date_iso) \
+            .order("created_at", desc=True) \
+            .limit(200).execute()
+        headers = res.data or []
+        if not headers:
+            return []
+        ma_pdt_list = [h["ma_pdt"] for h in headers]
+        res_ct = supabase.table("phieu_doi_tra_pos_ct").select("*") \
+            .in_("ma_pdt", ma_pdt_list).execute()
+        items_map: dict[str, list] = {}
+        for ct in (res_ct.data or []):
+            items_map.setdefault(ct["ma_pdt"], []).append(ct)
+        for h in headers:
+            h["items"] = items_map.get(h["ma_pdt"], [])
+        return headers
+    except Exception as e:
+        st.error(f"Lỗi tải phiếu đổi/trả: {e}")
+        return []
 
 
 # ════════════════════════════════════════════════════════════════
