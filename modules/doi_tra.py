@@ -24,6 +24,7 @@ from utils.db import (
     load_hang_hoa_pos,
     get_sl_da_tra_map,
     tao_phieu_doi_tra_pos_rpc,
+    load_phieu_doi_tra_pos_history,
 )
 from utils.helpers import fmt_vnd
 
@@ -123,7 +124,6 @@ def _render_section_hd_goc(hd_goc: dict, sl_da_tra: dict[str, int]):
         sl_goc   = int(ct.get("so_luong", 0) or 0)
         don_gia  = int(ct.get("don_gia", 0) or 0)
 
-        # SL còn lại có thể trả = SL gốc - đã trả ở các phiếu trước
         sl_con_lai = max(0, sl_goc - sl_da_tra.get(ma_hang, 0))
 
         if sl_con_lai == 0:
@@ -182,7 +182,7 @@ def _build_items_tra_payload(hd_goc: dict) -> list[dict]:
             "so_luong": sl,
             "don_gia":  int(ct.get("don_gia", 0) or 0),
         })
-    # Gộp các dòng cùng ma_hang (nếu HĐ gốc có 2 dòng cùng mã)
+    # Gộp các dòng cùng ma_hang
     merged: dict[str, dict] = {}
     for it in out:
         m = it["ma_hang"]
@@ -244,7 +244,6 @@ def _render_section_moi(chi_nhanh: str):
                 for hh in results:
                     _render_search_card_moi(hh)
 
-    # Render cart mới
     if not cart:
         st.caption("Chưa có sản phẩm mua mới.")
         return
@@ -387,15 +386,14 @@ def _render_section_tom_tat(tong_tra: int, tong_moi: int) -> int:
 def _render_section_pttt(chenh_lech: int) -> dict:
     """
     Trả về dict {tien_mat, chuyen_khoan, the}.
-    - chenh_lech > 0: khách bù — cho chọn PTTT (giống thanh toán)
-    - chenh_lech < 0: shop hoàn — chỉ tiền mặt (Q1), tự gán = chenh_lech
+    - chenh_lech > 0: khách bù — cho chọn PTTT
+    - chenh_lech < 0: shop hoàn — chỉ tiền mặt, tự gán = chenh_lech
     - chenh_lech = 0: tất cả 0
     """
     if chenh_lech == 0:
         return {"tien_mat": 0, "chuyen_khoan": 0, "the": 0}
 
     if chenh_lech < 0:
-        # Shop hoàn tiền mặt — không cần input thêm, chỉ thông báo
         st.markdown(
             f"<div style='background:#e8f7ee;border:1px solid #a4d8b4;"
             f"border-radius:10px;padding:10px 12px;margin-top:10px;'>"
@@ -487,13 +485,13 @@ def _xu_ly_xac_nhan(hd_goc: dict, items_tra: list[dict],
         st.error(f"Lỗi: {result.get('error', 'Không xác định')}")
         return
 
-    # Invalidate cache hàng hóa (tồn đã thay đổi)
+    # Invalidate cache
     load_hang_hoa_pos.clear()
+    load_phieu_doi_tra_pos_history.clear()
 
     ma_pdt = result.get("ma_pdt", "")
     st.toast(f"Đã tạo {ma_pdt}", icon="✅")
 
-    # Đóng màn đổi/trả → quay về tab Lịch sử
     _close_doi_tra()
     st.rerun()
 
@@ -503,18 +501,16 @@ def _xu_ly_xac_nhan(hd_goc: dict, items_tra: list[dict],
 # ════════════════════════════════════════════════════════════════
 
 def render_man_doi_tra():
-    """Render màn Đổi/Trả full-screen. Gọi khi st.session_state['doi_tra_active'] có giá trị."""
+    """Render màn Đổi/Trả full-screen."""
     ma_hd_goc = st.session_state.get("doi_tra_active")
     if not ma_hd_goc:
         return
 
     chi_nhanh = get_active_branch()
 
-    # Header + back
     col_back, col_title = st.columns([1, 5])
     with col_back:
-        if st.button("←", key="dt_back",
-                     use_container_width=True,
+        if st.button("←", key="dt_back", use_container_width=True,
                      help="Quay lại Lịch sử"):
             _close_doi_tra()
             st.rerun()
@@ -526,7 +522,6 @@ def render_man_doi_tra():
             unsafe_allow_html=True
         )
 
-    # Load HĐ gốc
     hd_goc = load_hoa_don_pos_by_ma(ma_hd_goc)
     if not hd_goc:
         st.error("Không tìm thấy hóa đơn gốc.")
@@ -535,7 +530,6 @@ def render_man_doi_tra():
             st.rerun()
         return
 
-    # Validate trạng thái
     if hd_goc.get("trang_thai") == "Đã hủy":
         st.error("Hóa đơn gốc đã bị hủy — không thể đổi/trả.")
         if st.button("← Quay lại", key="dt_back_cancelled"):
@@ -543,7 +537,6 @@ def render_man_doi_tra():
             st.rerun()
         return
 
-    # Validate ngày
     age_days = _hd_age_days(hd_goc.get("created_at", ""))
     over_7_days = age_days > 7
     if over_7_days and not is_admin():
@@ -555,7 +548,6 @@ def render_man_doi_tra():
             st.rerun()
         return
 
-    # Info HĐ gốc
     sdt_text = (" · " + hd_goc["sdt_khach"]) if hd_goc.get("sdt_khach") else ""
     st.markdown(
         f"<div style='background:#f7f7fa;border:1px solid #e8e8ee;"
@@ -569,23 +561,16 @@ def render_man_doi_tra():
     if over_7_days:
         st.warning(f"⚠ Quá 7 ngày — admin override.")
 
-    # Load SL đã trả ở các phiếu trước
     sl_da_tra = get_sl_da_tra_map(ma_hd_goc)
 
-    # Section A
     _render_section_hd_goc(hd_goc, sl_da_tra)
-
-    # Section B
     _render_section_moi(chi_nhanh)
 
-    # Section C
     tong_tra = _calc_tong_tra(hd_goc)
     tong_moi = _calc_tong_moi()
     chenh_lech = _render_section_tom_tat(tong_tra, tong_moi)
-
     pttt = _render_section_pttt(chenh_lech)
 
-    # Footer xác nhận
     st.markdown("<div style='margin-top:14px;'></div>", unsafe_allow_html=True)
 
     items_tra = _build_items_tra_payload(hd_goc)
@@ -617,7 +602,6 @@ def render_man_doi_tra():
 # ════════════════════════════════════════════════════════════════
 
 def _hd_age_days(iso_str: str) -> int:
-    """Số ngày từ HĐ gốc tới hôm nay (theo VN time)."""
     if not iso_str:
         return 0
     try:
@@ -696,7 +680,6 @@ def dialog_chi_tiet_pdt(pdt: dict):
         )
         _render_pdt_items_html(items_moi)
 
-    # Tóm tắt tiền
     rows = [
         ("Tổng tiền hàng trả lại", "− " + fmt_vnd(pdt.get("tien_hang_tra", 0))),
         ("Tổng tiền hàng mua mới", "+ " + fmt_vnd(pdt.get("tien_hang_moi", 0))),
@@ -737,7 +720,6 @@ def dialog_chi_tiet_pdt(pdt: dict):
 
     st.markdown("<div style='margin-top:14px;'></div>", unsafe_allow_html=True)
 
-    # Nút Hủy (admin only, chưa hủy)
     if is_admin() and not is_cancelled:
         if st.button("🚫 Hủy phiếu đổi/trả", use_container_width=True,
                      key=f"pdt_huy_{pdt['ma_pdt']}"):
@@ -791,6 +773,7 @@ def dialog_confirm_huy_pdt(pdt: dict):
                 )
             if result.get("ok"):
                 load_hang_hoa_pos.clear()
+                load_phieu_doi_tra_pos_history.clear()
                 st.session_state.pop("pdt_confirm_huy", None)
                 st.toast(f"Đã hủy {pdt['ma_pdt']}", icon="✅")
                 st.rerun()
