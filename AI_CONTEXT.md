@@ -51,8 +51,9 @@ Cả 2 deploy lên **Streamlit Cloud** từ 2 GitHub repo riêng. Cùng dùng **
 [✓] Bước 5: Polish + deploy guide (banner cảnh báo session, validation)
 [✓] Bước 6: Liên kết app cũ với HĐ POS (adapter load_hoa_don_unified)
 
-[ ] Bước 7: Đổi/Trả hàng đã bán       ← KẾ TIẾP — user đã có câu trả lời nghiệp vụ
-[ ] Bước 8: Đặt hàng theo yêu cầu     ← Sau bước 7 — user đã có câu trả lời nghiệp vụ
+[✓] Bước 7: Đổi/Trả hàng đã bán       — đã code, chờ user test
+[ ] Bước 8: Đặt hàng theo yêu cầu     ← KẾ TIẾP — user đã có câu trả lời nghiệp vụ
+[ ] Bước 7B: Update adapter app cũ — phản ánh phiếu đổi/trả vào báo cáo (sau khi 7 stable)
 
 [Roadmap kỹ thuật - làm khi có thời gian]
 [ ] Local Daemon + in K80 (Xprinter XP-365B static IP, port 9100)
@@ -83,7 +84,8 @@ pos_app/
 │   ├── full_setup.sql              # Schema cuối + RPC (cho fresh DB)
 │   ├── pos_setup.sql               # Patch ban đầu (đã chạy)
 │   ├── pos_patch_01_tien_thua.sql  # Đã chạy
-│   └── pos_patch_02_dich_vu.sql    # Đã chạy
+│   ├── pos_patch_02_dich_vu.sql    # Đã chạy
+│   └── pos_patch_03_doi_tra.sql    # Bước 7 — chờ user áp vào DB
 ├── utils/
 │   ├── __init__.py
 │   ├── config.py                   # APP_NAME, ALL_BRANCHES, CN_SHORT, CN_INFO
@@ -93,7 +95,8 @@ pos_app/
 └── modules/
     ├── __init__.py
     ├── ban_hang.py                 # Màn 1 (search+giỏ) → Màn 2 (thanh toán) → Màn 3 (success)
-    └── lich_su.py                  # List HĐ POS + modal chi tiết + flow hủy
+    ├── lich_su.py                  # List HĐ POS + modal chi tiết + flow hủy + nút "↔ Đổi/Trả"
+    └── doi_tra.py                  # Bước 7: màn Đổi/Trả + modal chi tiết phiếu AHDD
 ```
 
 ### POS — luồng chính
@@ -211,6 +214,84 @@ CREATE SEQUENCE ahd_seq START 1;
 ### RPC khác (từ app cũ, POS có dùng)
 
 - `get_next_akh_num()` — sinh mã AKH cho khách mới
+
+### Bước 7 — Bảng + RPC Đổi/Trả
+
+```sql
+phieu_doi_tra_pos (
+    ma_pdt           text PRIMARY KEY,         -- AHDD000001
+    ma_hd_goc        text REFERENCES hoa_don_pos(ma_hd),  -- bắt buộc
+    chi_nhanh        text,
+    ma_kh, ten_khach, sdt_khach,                -- snapshot từ HĐ gốc
+    loai_phieu       text,                      -- "Trả" | "Đổi ngang" | "Đổi có chênh lệch"
+    tien_hang_tra    integer,                   -- tổng món khách trả lại
+    tien_hang_moi    integer,                   -- tổng món mua mới
+    chenh_lech       integer,                   -- = moi - tra (>0 khách bù; <0 shop hoàn)
+    tien_mat         integer,                   -- âm nếu shop hoàn
+    chuyen_khoan     integer,
+    the              integer,
+    trang_thai       text,                      -- "Hoàn thành" | "Đã hủy"
+    nguoi_tao, nguoi_tao_id, ghi_chu,
+    created_at, cancelled_by, cancelled_at
+)
+
+phieu_doi_tra_pos_ct (
+    id              bigserial PRIMARY KEY,
+    ma_pdt          text REFERENCES ... ON DELETE CASCADE,
+    kieu            text,                       -- "tra" (cộng kho) | "moi" (trừ kho)
+    ma_hang, ten_hang, so_luong, don_gia, thanh_tien
+)
+
+CREATE SEQUENCE ahdd_seq START 1;
+```
+
+**RPC: `tao_phieu_doi_tra_pos(payload)`** — atomic
+- Validate HĐ gốc tồn tại + không hủy
+- Validate ngày: > 7 ngày → cần `is_admin=true` từ payload
+- Validate items_tra: SL ≤ (SL gốc - SL đã trả ở phiếu trước Hoàn thành)
+- Validate items_moi: check tồn (chỉ Hàng hóa)
+- Cộng kho "tra", trừ kho "moi" (chỉ Hàng hóa)
+- Tự suy ra `loai_phieu` từ tổng tra/mới
+- PTTT: nếu chenh_lech < 0 (shop hoàn) → chỉ cho tiền mặt (auto correct = chenh_lech, CK + Thẻ phải = 0)
+- Sinh mã `AHDD{seq:06d}`
+
+**RPC: `huy_phieu_doi_tra_pos(p_ma_pdt, p_cancelled_by)`** — atomic, đảo ngược kho
+
+### Quyết định nghiệp vụ Bước 7 (chốt với user)
+
+| # | Quyết định | Ghi chú |
+|---|------------|---------|
+| B7-1 | Hỗ trợ tất cả: Trả, Đổi ngang, Đổi có chênh lệch, Trả 1 phần | Phân loại tự động theo tổng tra vs mới |
+| B7-2 | Giới hạn 7 ngày cho NV thường; admin override | Check ở RPC + UI |
+| B7-3 | Không loại trừ sản phẩm nào | "Cho đổi/trả mọi mặt hàng" |
+| B7-4 | Chỉ cần SĐT (hoặc mã HĐ) tra ra HĐ → đổi được | UI: ô tìm SĐT/Mã ở đầu tab Lịch sử |
+| B7-5 | NV thường tự xử lý, không cần admin duyệt | RPC nhận `is_admin` chỉ để gate giới hạn 7 ngày |
+| B7-6 | Hàng trả tự cộng `the_kho` ngay (không phân biệt nguyên vẹn/hỏng) | Phase 1 đơn giản |
+| B7-7 | Phiếu link HĐ gốc qua `ma_hd_goc` (FK) | Modal HĐ gốc hiện list phiếu đổi/trả |
+| B7-8 | Chỉ admin được hủy phiếu | RPC không gate role; UI gate |
+| B7-9 | 1 HĐ gốc → nhiều phiếu đổi/trả OK, miễn tổng SL trả ≤ SL gốc | RPC tính cumulative `sl_da_tra` |
+| B7-10 | Tiền hoàn (chenh_lech<0): chỉ tiền mặt | Q1 với user |
+| B7-11 | `khach_hang.tong_ban` GIỮ NGUYÊN khi đổi/trả | Q4 — đơn giản |
+| B7-12 | UI: nhúng vào tab Lịch sử (không tạo tab mới) | + ô tìm SĐT/Mã đầu tab |
+
+### `utils/db.py` — thêm functions Bước 7
+
+- `search_hoa_don_pos(keyword, chi_nhanh_list, limit=30)` — ilike SĐT/mã, mọi ngày
+- `load_hoa_don_pos_by_ma(ma_hd)` — load 1 HĐ kèm items
+- `load_phieu_doi_tra_by_hd(ma_hd_goc)` — list phiếu đổi/trả của 1 HĐ
+- `get_sl_da_tra_map(ma_hd_goc)` — map {ma_hang: tổng SL đã trả ở các phiếu Hoàn thành}
+- `tao_phieu_doi_tra_pos_rpc(payload)` / `huy_phieu_doi_tra_pos_rpc(ma_pdt, cancelled_by)`
+
+### `modules/doi_tra.py` — màn Đổi/Trả
+
+State:
+- `st.session_state["doi_tra_active"]` = `ma_hd_goc` | None — gate render full-screen
+- `st.session_state["doi_tra_tra_map"]` = `{idx_item_in_hd_goc: sl_tra}`
+- `st.session_state["doi_tra_moi_cart"]` = list items mua mới
+
+UI sections: HĐ gốc info → Section A (chọn món trả) → Section B (search + cart mua mới) → Section C (tóm tắt + chênh lệch + PTTT) → footer xác nhận. Sau RPC OK → `_close_doi_tra()` + `load_hang_hoa_pos.clear()` + rerun về Lịch sử.
+
+Cũng export: `dialog_chi_tiet_pdt(pdt)` + `dialog_confirm_huy_pdt(pdt)` cho `lich_su.py` dùng.
 
 ---
 
@@ -424,6 +505,10 @@ load_hang_hoa_pos.clear()      # tồn kho thay đổi
 | D10 | In K80: kiến trúc Cloud-to-LAN spooler (POS INSERT print_queue → Local Daemon polls → TCP 9100) | User design |
 | D11 | Bước 6: tách prefix APSC / POS / KiotViet, hiển thị doanh thu 4 cột + caption tách KiotViet/POS | User chọn |
 | D12 | Sau khi bỏ KiotViet, không cần code thay đổi gì | Adapter tự thích nghi |
+| D13 | Bước 7: prefix mới `AHDD` cho phiếu đổi/trả (sequence riêng `ahdd_seq`) | Tách bạch với HĐ POS |
+| D14 | Bước 7: 1 phiếu đổi/trả lưu CẢ items trả + items mua mới trong 1 bảng `phieu_doi_tra_pos_ct` (cột `kieu`) | Đơn giản hơn 2 bảng |
+| D15 | Bước 7: shop hoàn tiền chỉ tiền mặt (Phase 1) | User chọn |
+| D16 | Bước 7: `khach_hang.tong_ban` không trừ khi đổi/trả | User chọn — đơn giản |
 
 ---
 
