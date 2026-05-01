@@ -695,7 +695,10 @@ def render_session_warning_banner():
         return  # Còn nhiều, không cần cảnh báo
 
     minutes = int(remaining // 60)
-    expires_hhmm = expires.strftime("%H:%M")
+    # Convert sang VN timezone trước khi format — Supabase lưu timestamptz ở UTC,
+    # nếu strftime trực tiếp sẽ ra giờ UTC (vd 16:59 thay vì 23:59 VN)
+    from zoneinfo import ZoneInfo
+    expires_hhmm = expires.astimezone(ZoneInfo("Asia/Ho_Chi_Minh")).strftime("%H:%M")
 
     st.markdown(
         f"<div style='background:#fff8e0;border:1px solid #f0c36d;"
