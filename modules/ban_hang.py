@@ -303,8 +303,6 @@ def _render_search_section():
                     "</div>",
                     unsafe_allow_html=True
                 )
-            else:
-                st.caption(f"📦 {len(hh_list)} sản phẩm — gõ để tìm")
             return
 
         results = _search_hang_hoa(keyword, hh_list, max_results=3)
@@ -425,29 +423,42 @@ def _render_footer():
     cart = _get_cart()
     tam_tinh = _calc_tam_tinh(cart)
 
-    st.markdown("<hr style='margin:14px 0 8px;'>", unsafe_allow_html=True)
-
     st.markdown(
-        f"<div style='background:#fff;border:1px solid #ffd5d9;border-radius:10px;"
-        f"padding:12px 14px;margin-bottom:10px;'>"
-        f"<div style='display:flex;justify-content:space-between;align-items:center;'>"
-        f"<span style='font-size:0.92rem;color:#555;'>Tạm tính:</span>"
-        f"<span style='font-size:1.3rem;font-weight:700;color:#e63946;'>"
-        f"{fmt_vnd(tam_tinh)}</span>"
-        f"</div></div>",
-        unsafe_allow_html=True
+        """<style>
+        [class*="st-key-pos-footer-sticky"] {
+            position: sticky;
+            bottom: 0;
+            z-index: 30;
+            background: #ffffff;
+            padding: 10px 0 calc(10px + env(safe-area-inset-bottom));
+            border-top: 1px solid #ececec;
+            margin-top: 8px;
+        }
+        </style>""",
+        unsafe_allow_html=True,
     )
+    with st.container(key="pos-footer-sticky"):
+        st.markdown(
+            f"<div style='background:#fff;border:1px solid #ffd5d9;border-radius:10px;"
+            f"padding:12px 14px;margin-bottom:10px;'>"
+            f"<div style='display:flex;justify-content:space-between;align-items:center;'>"
+            f"<span style='font-size:0.92rem;color:#555;'>Tạm tính:</span>"
+            f"<span style='font-size:1.3rem;font-weight:700;color:#e63946;'>"
+            f"{fmt_vnd(tam_tinh)}</span>"
+            f"</div></div>",
+            unsafe_allow_html=True
+        )
 
-    can_continue = len(cart) > 0
-    if st.button(
-        "TIẾP TỤC →",
-        type="primary",
-        use_container_width=True,
-        disabled=not can_continue,
-        key="pos_continue_btn",
-    ):
-        st.session_state["pos_step"] = "thanh_toan"
-        st.rerun()
+        can_continue = len(cart) > 0
+        if st.button(
+            "TIẾP TỤC →",
+            type="primary",
+            use_container_width=True,
+            disabled=not can_continue,
+            key="pos_continue_btn",
+        ):
+            st.session_state["pos_step"] = "thanh_toan"
+            st.rerun()
 
 
 # ════════════════════════════════════════════════════════════════
