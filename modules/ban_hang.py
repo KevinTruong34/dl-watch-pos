@@ -303,8 +303,6 @@ def _render_search_section():
                     "</div>",
                     unsafe_allow_html=True
                 )
-            else:
-                st.caption(f"📦 {len(hh_list)} sản phẩm — gõ để tìm")
             return
 
         results = _search_hang_hoa(keyword, hh_list, max_results=3)

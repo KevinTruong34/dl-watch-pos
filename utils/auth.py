@@ -167,6 +167,14 @@ def _initials(ho_ten: str) -> str:
     return words[-1][0].upper()
 
 
+def _display_name_no_prefix(ho_ten: str) -> str:
+    """Bỏ tiền tố 1 ký tự kiểu 'K Đăng Khoa' -> 'Đăng Khoa'."""
+    words = (ho_ten or "").strip().split()
+    if len(words) >= 2 and len(words[0]) == 1:
+        return " ".join(words[1:])
+    return ho_ten
+
+
 # CSS cho numpad — force horizontal layout cả trên mobile
 _NUMPAD_CSS = """
 <style>
@@ -273,6 +281,7 @@ def _render_numpad_input(key_prefix: str, max_len: int = 4) -> str:
             key=input_key,
             label_visibility="collapsed",
             placeholder="• • • •",
+            type="password",
         )
 
     # Filter typed: chỉ giữ chữ số, max max_len
@@ -403,11 +412,11 @@ def _show_step_choose_nv():
     """, unsafe_allow_html=True)
 
     for nv in nv_list:
-        ini = _initials(nv["ho_ten"])
+        display_name = _display_name_no_prefix(nv["ho_ten"])
         col_btn = st.container()
         with col_btn:
             if st.button(
-                f"{ini}    {nv['ho_ten']}",
+                display_name,
                 key=f"login_nv_{nv['id']}",
                 use_container_width=True,
             ):
@@ -539,17 +548,27 @@ def _show_step_choose_branch():
     )
 
     from utils.config import CN_SHORT
-    for cn in branches:
-        short = CN_SHORT.get(cn, cn)
-        if st.button(
-            f"📍 {short}\n{cn}",
-            key=f"login_cn_{cn}",
-            use_container_width=True,
-        ):
-            st.session_state["active_chi_nhanh"] = cn
-            # Lưu vào localStorage qua components.html
-            _save_branch_localstorage(cn)
-            st.rerun()
+    st.markdown(
+        """<style>
+        [class*="st-key-login-branch-zone"] button[kind] p {
+            font-weight: 700 !important;
+            font-size: 1rem !important;
+        }
+        </style>""",
+        unsafe_allow_html=True,
+    )
+    with st.container(key="login-branch-zone"):
+        for cn in branches:
+            label = CN_SHORT.get(cn, cn) if cn == "GO BÀ RỊA" else cn
+            if st.button(
+                f"📍 {label}",
+                key=f"login_cn_{cn}",
+                use_container_width=True,
+            ):
+                st.session_state["active_chi_nhanh"] = cn
+                # Lưu vào localStorage qua components.html
+                _save_branch_localstorage(cn)
+                st.rerun()
 
     st.markdown("<br>", unsafe_allow_html=True)
     if st.button("Đăng xuất", key="login_logout_branch", use_container_width=True):
