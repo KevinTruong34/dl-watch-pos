@@ -310,6 +310,154 @@ def huy_hoa_don_pos_rpc(ma_hd: str, cancelled_by: str = "") -> dict:
 
 
 # ════════════════════════════════════════════════════════════════
+# ĐỔI / TRẢ HÀNG (Bước 7)
+# ════════════════════════════════════════════════════════════════
+
+def search_hoa_don_pos(keyword: str, chi_nhanh_list: list[str],
+                       limit: int = 30) -> list[dict]:
+    """
+    Tìm HĐ POS theo SĐT hoặc mã HĐ (full hoặc partial), trong các CN cho phép.
+    Trả về list HĐ kèm items, sort newest-first.
+    """
+    kw = (keyword or "").strip()
+    if not kw or not chi_nhanh_list:
+        return []
+    try:
+        q = supabase.table("hoa_don_pos").select("*").in_("chi_nhanh", chi_nhanh_list)
+        # Tìm mã HĐ hoặc SĐT (case-insensitive với ilike)
+        q = q.or_(f"ma_hd.ilike.%{kw}%,sdt_khach.ilike.%{kw}%")
+        res = q.order("created_at", desc=True).limit(limit).execute()
+        headers = res.data or []
+        if not headers:
+            return []
+
+        ma_hd_list = [h["ma_hd"] for h in headers]
+        res_ct = supabase.table("hoa_don_pos_ct").select("*") \
+            .in_("ma_hd", ma_hd_list).execute()
+        items_map: dict[str, list] = {}
+        for ct in (res_ct.data or []):
+            items_map.setdefault(ct["ma_hd"], []).append(ct)
+        for h in headers:
+            h["items"] = items_map.get(h["ma_hd"], [])
+        return headers
+    except Exception as e:
+        st.error(f"Lỗi tìm hóa đơn: {e}")
+        return []
+
+
+def load_hoa_don_pos_by_ma(ma_hd: str) -> dict | None:
+    """Load 1 HĐ POS theo mã (kèm items). Trả về None nếu không có."""
+    if not ma_hd:
+        return None
+    try:
+        res = supabase.table("hoa_don_pos").select("*") \
+            .eq("ma_hd", ma_hd).limit(1).execute()
+        if not res.data:
+            return None
+        h = res.data[0]
+        res_ct = supabase.table("hoa_don_pos_ct").select("*") \
+            .eq("ma_hd", ma_hd).execute()
+        h["items"] = res_ct.data or []
+        return h
+    except Exception:
+        return None
+
+
+def load_phieu_doi_tra_by_hd(ma_hd_goc: str) -> list[dict]:
+    """
+    Load tất cả phiếu đổi/trả của 1 HĐ gốc, kèm items, sort newest-first.
+    Bao gồm cả phiếu Đã hủy (UI sẽ hiện xám).
+    """
+    if not ma_hd_goc:
+        return []
+    try:
+        res = supabase.table("phieu_doi_tra_pos").select("*") \
+            .eq("ma_hd_goc", ma_hd_goc) \
+            .order("created_at", desc=True).execute()
+        headers = res.data or []
+        if not headers:
+            return []
+        ma_pdt_list = [h["ma_pdt"] for h in headers]
+        res_ct = supabase.table("phieu_doi_tra_pos_ct").select("*") \
+            .in_("ma_pdt", ma_pdt_list).execute()
+        items_map: dict[str, list] = {}
+        for ct in (res_ct.data or []):
+            items_map.setdefault(ct["ma_pdt"], []).append(ct)
+        for h in headers:
+            h["items"] = items_map.get(h["ma_pdt"], [])
+        return headers
+    except Exception as e:
+        st.error(f"Lỗi tải phiếu đổi/trả: {e}")
+        return []
+
+
+def get_sl_da_tra_map(ma_hd_goc: str) -> dict[str, int]:
+    """
+    Trả về map {ma_hang: tổng SL đã trả} từ các phiếu đổi/trả Hoàn thành
+    của 1 HĐ gốc. Dùng để client validate SL còn lại có thể trả.
+    """
+    out: dict[str, int] = {}
+    if not ma_hd_goc:
+        return out
+    try:
+        # Lấy ma_pdt của các phiếu Hoàn thành
+        res_h = supabase.table("phieu_doi_tra_pos").select("ma_pdt") \
+            .eq("ma_hd_goc", ma_hd_goc) \
+            .eq("trang_thai", "Hoàn thành").execute()
+        ma_pdt_list = [r["ma_pdt"] for r in (res_h.data or [])]
+        if not ma_pdt_list:
+            return out
+        res = supabase.table("phieu_doi_tra_pos_ct") \
+            .select("ma_hang,so_luong,kieu") \
+            .in_("ma_pdt", ma_pdt_list).execute()
+        for r in (res.data or []):
+            if r.get("kieu") != "tra":
+                continue
+            mh = r.get("ma_hang", "")
+            out[mh] = out.get(mh, 0) + int(r.get("so_luong") or 0)
+        return out
+    except Exception:
+        return out
+
+
+def tao_phieu_doi_tra_pos_rpc(payload: dict) -> dict:
+    """
+    Gọi RPC tao_phieu_doi_tra_pos.
+    Returns dict: {ok, ma_pdt, loai_phieu, tien_hang_tra, tien_hang_moi, chenh_lech}
+                  hoặc {ok: false, error}
+    """
+    try:
+        res = supabase.rpc("tao_phieu_doi_tra_pos", {"payload": payload}).execute()
+        result = res.data
+        if isinstance(result, list):
+            result = result[0] if result else {}
+        if not isinstance(result, dict):
+            return {"ok": False, "error": "RPC trả về kết quả không hợp lệ"}
+        return result
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def huy_phieu_doi_tra_pos_rpc(ma_pdt: str, cancelled_by: str = "") -> dict:
+    """
+    Gọi RPC huy_phieu_doi_tra_pos — đảo lại stock + set Đã hủy.
+    """
+    try:
+        res = supabase.rpc("huy_phieu_doi_tra_pos", {
+            "p_ma_pdt":       ma_pdt,
+            "p_cancelled_by": cancelled_by or "",
+        }).execute()
+        result = res.data
+        if isinstance(result, list):
+            result = result[0] if result else {}
+        if not isinstance(result, dict):
+            return {"ok": False, "error": "RPC trả về kết quả không hợp lệ"}
+        return result
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+# ════════════════════════════════════════════════════════════════
 # VALIDATION HELPERS
 # ════════════════════════════════════════════════════════════════
 
