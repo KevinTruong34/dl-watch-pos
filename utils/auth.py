@@ -167,6 +167,14 @@ def _initials(ho_ten: str) -> str:
     return words[-1][0].upper()
 
 
+def _display_name_no_prefix(ho_ten: str) -> str:
+    """Bỏ tiền tố 1 ký tự kiểu 'K Đăng Khoa' -> 'Đăng Khoa'."""
+    words = (ho_ten or "").strip().split()
+    if len(words) >= 2 and len(words[0]) == 1:
+        return " ".join(words[1:])
+    return ho_ten
+
+
 # CSS cho numpad — force horizontal layout cả trên mobile
 _NUMPAD_CSS = """
 <style>
@@ -404,11 +412,11 @@ def _show_step_choose_nv():
     """, unsafe_allow_html=True)
 
     for nv in nv_list:
-        ini = _initials(nv["ho_ten"])
+        display_name = _display_name_no_prefix(nv["ho_ten"])
         col_btn = st.container()
         with col_btn:
             if st.button(
-                f"{ini}    {nv['ho_ten']}",
+                display_name,
                 key=f"login_nv_{nv['id']}",
                 use_container_width=True,
             ):

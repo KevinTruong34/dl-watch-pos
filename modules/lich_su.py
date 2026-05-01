@@ -349,18 +349,33 @@ def module_lich_su():
             _render_invoice_card(inv)
 
     # Nút "Xem cũ hơn" + "Quay về hôm nay" cùng hàng
+    st.markdown(
+        """<style>
+        .st-key-lichsu-actions-zone div[data-testid="stHorizontalBlock"] {
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            width: 100% !important;
+            gap: 8px !important;
+        }
+        .st-key-lichsu-actions-zone div[data-testid="stHorizontalBlock"] > div {
+            min-width: 0 !important;
+        }
+        </style>""",
+        unsafe_allow_html=True,
+    )
     st.markdown("<div style='margin-top:14px;'></div>", unsafe_allow_html=True)
-    col_old, col_today = st.columns(2)
-    with col_old:
-        if st.button("📅 Xem cũ hơn (+1 ngày)",
-                     use_container_width=True,
-                     key="lichsu_xem_cu_hon"):
-            st.session_state["lichsu_days_back"] = days_back + 1
-            st.rerun()
-    with col_today:
-        if st.button("↻ Quay về hôm nay",
-                     use_container_width=True,
-                     key="lichsu_reset",
-                     disabled=(days_back == 0)):
-            st.session_state["lichsu_days_back"] = 0
-            st.rerun()
+    with st.container(key="lichsu-actions-zone"):
+        col_old, col_today = st.columns(2)
+        with col_old:
+            if st.button("📅 Xem cũ hơn (+1 ngày)",
+                         use_container_width=True,
+                         key="lichsu_xem_cu_hon"):
+                st.session_state["lichsu_days_back"] = days_back + 1
+                st.rerun()
+        with col_today:
+            if st.button("↻ Quay về hôm nay",
+                         use_container_width=True,
+                         key="lichsu_reset",
+                         disabled=(days_back == 0)):
+                st.session_state["lichsu_days_back"] = 0
+                st.rerun()
