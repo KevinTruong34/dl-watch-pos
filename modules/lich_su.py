@@ -2,12 +2,13 @@
 Module lịch sử hóa đơn POS.
 
 UI flow:
-- Mặc định load HĐ hôm nay của CN đang chọn
+- Mặc định load HĐ + phiếu đổi/trả hôm nay của CN đang chọn (merge, sort newest-first)
 - Search SĐT / mã HĐ / tên KH → filter client-side
 - Bấm "Xem cũ hơn" → load thêm 1 ngày (mỗi click)
 - Bấm vào card HĐ → mở modal chi tiết
-- Modal có nút "🚫 Hủy hóa đơn" (chỉ admin) → confirm 2 bước → gọi RPC
-- HĐ đã hủy hiện xám với badge "Đã hủy"
+- Bấm vào card phiếu đổi/trả → mở modal chi tiết phiếu (top-level, tránh nested dialog)
+- Modal HĐ có nút "🚫 Hủy hóa đơn" (chỉ admin) → confirm 2 bước → gọi RPC
+- HĐ / phiếu đã hủy hiện xám với badge "Đã hủy"
 """
 
 import streamlit as st
@@ -19,6 +20,7 @@ from utils.auth import (
 from utils.db import (
     load_hoa_don_pos_history, huy_hoa_don_pos_rpc,
     search_hoa_don_pos, load_phieu_doi_tra_by_hd,
+    load_phieu_doi_tra_pos_history,
 )
 from utils.helpers import fmt_vnd, today_vn
 from modules.doi_tra import (
@@ -32,21 +34,17 @@ from modules.doi_tra import (
 # ════════════════════════════════════════════════════════════════
 
 def _get_days_back() -> int:
-    """Số ngày lùi về quá khứ — mặc định 0 (chỉ hôm nay)."""
     return st.session_state.get("lichsu_days_back", 0)
 
 
 def _get_from_date_iso() -> str:
-    """ISO timestamp đầu của khoảng load (UTC+7)."""
     days_back = _get_days_back()
     today = today_vn()
     from_date = today - timedelta(days=days_back)
-    # Format đầu ngày VN: 2026-04-30T00:00:00+07:00
     return from_date.strftime("%Y-%m-%dT00:00:00+07:00")
 
 
 def _format_invoice_time(iso_str: str) -> str:
-    """'2026-04-30T14:23:45+07:00' → '14:23 · 30/04'."""
     try:
         dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
         return dt.strftime("%H:%M · %d/%m")
@@ -55,7 +53,6 @@ def _format_invoice_time(iso_str: str) -> str:
 
 
 def _format_invoice_date(iso_str: str) -> str:
-    """'2026-04-30T...' → '30/04/2026 14:23'."""
     try:
         dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
         return dt.strftime("%d/%m/%Y %H:%M")
@@ -63,8 +60,33 @@ def _format_invoice_date(iso_str: str) -> str:
         return iso_str
 
 
+def _filter_items(items: list[dict], keyword: str) -> list[dict]:
+    """Filter danh sách HĐ + phiếu đổi/trả theo keyword (sdt/mã/tên KH)."""
+    kw = keyword.strip().lower()
+    if not kw:
+        return items
+    out = []
+    for item in items:
+        if item.get("_type") == "pdt":
+            searchable = " ".join([
+                item.get("ma_pdt", ""),
+                item.get("ma_hd_goc", ""),
+                item.get("sdt_khach", "") or "",
+                item.get("ten_khach", "") or "",
+            ]).lower()
+        else:
+            searchable = " ".join([
+                item.get("ma_hd", ""),
+                item.get("sdt_khach", "") or "",
+                item.get("ten_khach", "") or "",
+            ]).lower()
+        if kw in searchable:
+            out.append(item)
+    return out
+
+
 def _filter_invoices(invoices: list[dict], keyword: str) -> list[dict]:
-    """Filter HĐ theo SĐT / mã HĐ / tên KH (case-insensitive, contains)."""
+    """Filter chỉ HĐ (dùng cho _render_find_results)."""
     kw = keyword.strip().lower()
     if not kw:
         return invoices
@@ -86,7 +108,6 @@ def _filter_invoices(invoices: list[dict], keyword: str) -> list[dict]:
 def _dialog_chi_tiet(inv: dict):
     is_cancelled = inv.get("trang_thai") == "Đã hủy"
 
-    # Header
     badge = ""
     if is_cancelled:
         badge = ("<span style='background:#ffe5e5;color:#c1121f;"
@@ -113,7 +134,6 @@ def _dialog_chi_tiet(inv: dict):
 
     st.markdown("<hr style='margin:10px 0 8px;'>", unsafe_allow_html=True)
 
-    # Khách hàng + người bán
     sdt_text = (" · " + inv["sdt_khach"]) if inv.get("sdt_khach") else ""
     st.markdown(
         f"<div style='font-size:0.88rem;color:#555;'>"
@@ -123,7 +143,6 @@ def _dialog_chi_tiet(inv: dict):
         unsafe_allow_html=True
     )
 
-    # Items
     st.markdown(
         "<div style='font-size:0.88rem;font-weight:600;color:#1a1a2e;"
         "margin:12px 0 6px;'>Chi tiết:</div>",
@@ -151,12 +170,10 @@ def _dialog_chi_tiet(inv: dict):
     items_html += "</div>"
     st.markdown(items_html, unsafe_allow_html=True)
 
-    # Tổng tiền
     rows = [("Tổng tiền hàng", fmt_vnd(inv.get("tong_tien_hang", 0)))]
     if inv.get("giam_gia_don", 0) > 0:
         rows.append(("Giảm giá đơn", "− " + fmt_vnd(inv["giam_gia_don"])))
     rows.append(("Khách cần trả", fmt_vnd(inv.get("khach_can_tra", 0))))
-
     if inv.get("tien_mat", 0) > 0:
         rows.append(("💵 Tiền mặt", fmt_vnd(inv["tien_mat"])))
     if inv.get("chuyen_khoan", 0) > 0:
@@ -193,7 +210,6 @@ def _dialog_chi_tiet(inv: dict):
 
     st.markdown("<div style='margin-top:14px;'></div>", unsafe_allow_html=True)
 
-    # Actions — không show nếu HĐ đã hủy
     if is_cancelled:
         if st.button("🖨 In lại", use_container_width=True,
                      key=f"ls_in_{inv['ma_hd']}",
@@ -201,7 +217,6 @@ def _dialog_chi_tiet(inv: dict):
             st.toast("Tính năng in đang chờ setup máy in", icon="🛠")
         return
 
-    # 2 nút: Đổi/Trả (mọi NV) + Hủy (admin)
     col_dt, col_huy = st.columns(2)
     with col_dt:
         if st.button("↔ Đổi/Trả", use_container_width=True,
@@ -222,13 +237,16 @@ def _dialog_chi_tiet(inv: dict):
 
 
 def _render_pdt_row_in_invoice(pdt: dict):
-    """1 dòng phiếu đổi/trả trong modal HĐ gốc — bấm vào → mở modal chi tiết phiếu."""
+    """
+    1 dòng phiếu đổi/trả trong modal HĐ gốc.
+    Bấm vào → set state lichsu_view_pdt + rerun về top-level
+    (tránh nested @st.dialog crash).
+    """
     is_cancelled = pdt.get("trang_thai") == "Đã hủy"
     ma_pdt = pdt.get("ma_pdt", "")
     loai   = pdt.get("loai_phieu", "")
     cl     = int(pdt.get("chenh_lech", 0) or 0)
 
-    # Tóm tắt: tên các món trả + tên các món mới (chỉ tên gọn)
     items = pdt.get("items", [])
     tra_names = [it.get("ten_hang", "") for it in items if it.get("kieu") == "tra"]
     moi_names = [it.get("ten_hang", "") for it in items if it.get("kieu") == "moi"]
@@ -261,14 +279,14 @@ def _render_pdt_row_in_invoice(pdt: dict):
             unsafe_allow_html=True
         )
     with st.container(key=container_key):
-        if st.button(btn_label,
-                     key=f"ls_pdt_btn_{ma_pdt}",
-                     use_container_width=True):
-            dialog_chi_tiet_pdt(pdt)
+        if st.button(btn_label, key=f"ls_pdt_btn_{ma_pdt}", use_container_width=True):
+            # Set state rồi rerun ra top-level — tránh nested dialog
+            st.session_state["lichsu_view_pdt"] = pdt
+            st.rerun()
 
 
 # ════════════════════════════════════════════════════════════════
-# MODAL — Confirm hủy
+# MODAL — Confirm hủy HĐ
 # ════════════════════════════════════════════════════════════════
 
 @st.dialog("Xác nhận hủy hóa đơn?")
@@ -289,20 +307,16 @@ def _dialog_confirm_huy(inv: dict):
                      key=f"ls_huy_confirm_{inv['ma_hd']}"):
             user = get_user() or {}
             cancelled_by = user.get("ho_ten", "")
-
             with st.spinner("Đang hủy hóa đơn..."):
                 result = huy_hoa_don_pos_rpc(inv["ma_hd"], cancelled_by)
-
             if result.get("ok"):
                 st.session_state.pop("lichsu_confirm_huy", None)
-                # Invalidate cache hàng hóa (vì tồn đã thay đổi)
                 from utils.db import load_hang_hoa_pos
                 load_hang_hoa_pos.clear()
                 st.toast(f"Đã hủy {inv['ma_hd']}", icon="✅")
                 st.rerun()
             else:
                 st.error(f"Lỗi: {result.get('error', 'Không xác định')}")
-
     with col2:
         if st.button("Quay lại", use_container_width=True,
                      key=f"ls_huy_cancel_{inv['ma_hd']}"):
@@ -311,7 +325,7 @@ def _dialog_confirm_huy(inv: dict):
 
 
 # ════════════════════════════════════════════════════════════════
-# RENDER — Card 1 hóa đơn
+# RENDER — Card HĐ bán hàng
 # ════════════════════════════════════════════════════════════════
 
 def _render_invoice_card(inv: dict):
@@ -328,30 +342,65 @@ def _render_invoice_card(inv: dict):
     if sdt:
         sub_kh += f" · {sdt}"
 
-    # Badge "Đã hủy" trên label nút (Streamlit button không nhận HTML)
     cancel_tag = " [ĐÃ HỦY]" if is_cancelled else ""
-
     btn_label = (
         f"{ma_hd}{cancel_tag} — {fmt_vnd(tien)}\n"
         f"{thoi_gian}  ·  {sub_kh}\n"
         f"NV: {nguoi_ban}"
     )
 
-    # Wrap container để áp opacity nếu đã hủy
     container_key = f"ls-card-zone-{'cancelled' if is_cancelled else 'active'}-{ma_hd}"
     if is_cancelled:
         st.markdown(
             f"<style>.st-key-{container_key} button {{ opacity: 0.55 !important; }}</style>",
             unsafe_allow_html=True
         )
-
     with st.container(key=container_key):
-        if st.button(
-            btn_label,
-            key=f"ls_card_{ma_hd}",
-            use_container_width=True,
-        ):
+        if st.button(btn_label, key=f"ls_card_{ma_hd}", use_container_width=True):
             _dialog_chi_tiet(inv)
+
+
+# ════════════════════════════════════════════════════════════════
+# RENDER — Card phiếu đổi/trả (hiện riêng trong danh sách)
+# ════════════════════════════════════════════════════════════════
+
+def _render_pdt_card(pdt: dict):
+    is_cancelled = pdt.get("trang_thai") == "Đã hủy"
+    ma_pdt    = pdt.get("ma_pdt", "")
+    loai      = pdt.get("loai_phieu", "")
+    cl        = int(pdt.get("chenh_lech", 0) or 0)
+    ten_kh    = pdt.get("ten_khach") or "Khách lẻ"
+    sdt       = pdt.get("sdt_khach") or ""
+    nguoi     = pdt.get("nguoi_tao") or ""
+    thoi_gian = _format_invoice_time(pdt.get("created_at", ""))
+    ma_hd_goc = pdt.get("ma_hd_goc", "")
+
+    if cl > 0:
+        tien_text = f"{fmt_vnd(cl)} (KH bù)"
+    elif cl < 0:
+        tien_text = f"{fmt_vnd(-cl)} (hoàn KH)"
+    else:
+        tien_text = "đổi ngang"
+
+    sub_kh = ten_kh + (f" · {sdt}" if sdt else "")
+    cancel_tag = " [ĐÃ HỦY]" if is_cancelled else ""
+
+    btn_label = (
+        f"↔ {ma_pdt}{cancel_tag} — {loai} · {tien_text}\n"
+        f"{thoi_gian}  ·  {sub_kh}\n"
+        f"Từ HĐ: {ma_hd_goc}  ·  NV: {nguoi}"
+    )
+
+    container_key = f"ls-pdt-card-{'cancelled' if is_cancelled else 'active'}-{ma_pdt}"
+    if is_cancelled:
+        st.markdown(
+            f"<style>.st-key-{container_key} button {{ opacity: 0.55 !important; }}</style>",
+            unsafe_allow_html=True
+        )
+    with st.container(key=container_key):
+        if st.button(btn_label, key=f"ls_pdt_card_{ma_pdt}", use_container_width=True):
+            st.session_state["lichsu_view_pdt"] = pdt
+            st.rerun()
 
 
 # ════════════════════════════════════════════════════════════════
@@ -359,31 +408,35 @@ def _render_invoice_card(inv: dict):
 # ════════════════════════════════════════════════════════════════
 
 def module_lich_su():
-    """Tab Lịch sử hóa đơn — list HĐ của CN đang chọn."""
-
-    # Nếu đang ở màn Đổi/Trả → render full-screen, bỏ qua phần list
+    # Nếu đang ở màn Đổi/Trả → render full-screen
     if is_doi_tra_active():
         render_man_doi_tra()
         return
 
     chi_nhanh = get_active_branch()
 
-    # Pending confirm dialogs (priority cao hơn render)
+    # ── Pending dialogs — render ở top-level (tránh nested dialog) ──
     pending_huy = st.session_state.get("lichsu_confirm_huy")
     if pending_huy:
         _dialog_confirm_huy(pending_huy)
+
     pending_huy_pdt = st.session_state.get("pdt_confirm_huy")
     if pending_huy_pdt:
         dialog_confirm_huy_pdt(pending_huy_pdt)
 
-    # Header: tiêu đề
+    # F1 fix: pop trước khi gọi → dialog mở 1 lần, đóng clean khi user nhấn X
+    pending_view_pdt = st.session_state.pop("lichsu_view_pdt", None)
+    if pending_view_pdt:
+        dialog_chi_tiet_pdt(pending_view_pdt)
+
+    # ── Header ──
     st.markdown(
         f"<div style='font-size:1rem;font-weight:700;color:#1a1a2e;"
-        f"margin-bottom:8px;'>📋 Lịch sử hóa đơn — {chi_nhanh}</div>",
+        f"margin-bottom:8px;'>📋 Lịch sử — {chi_nhanh}</div>",
         unsafe_allow_html=True
     )
 
-    # ── Ô tìm HĐ theo SĐT/Mã (across all CN có quyền, mọi ngày) ──
+    # ── Ô tìm HĐ theo SĐT/Mã (mọi ngày, tất cả CN có quyền) ──
     with st.container(key="numkb-tel-lichsu-find"):
         find_kw = st.text_input(
             "Tìm HĐ theo SĐT hoặc mã",
@@ -396,55 +449,56 @@ def module_lich_su():
         _render_find_results(find_kw.strip())
         return
 
-    # Search input (filter trong list hiện tại)
+    # ── Ô lọc trong danh sách hiện tại ──
     keyword = st.text_input(
-        "Tìm kiếm",
+        "Lọc danh sách",
         placeholder="Lọc trong danh sách bên dưới...",
         key="lichsu_search_kw",
         label_visibility="collapsed",
     )
 
-    # Load HĐ
+    # ── Load dữ liệu ──
     from_date_iso = _get_from_date_iso()
     days_back = _get_days_back()
 
-    with st.spinner("Đang tải hóa đơn..."):
+    with st.spinner("Đang tải..."):
         invoices = load_hoa_don_pos_history(chi_nhanh, from_date_iso)
+        pdts     = load_phieu_doi_tra_pos_history(chi_nhanh, from_date_iso)
 
-    # Range info
+    # Merge + sort newest-first
+    all_items = (
+        [{"_type": "hd",  **h} for h in invoices] +
+        [{"_type": "pdt", **p} for p in pdts]
+    )
+    all_items.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+
+    # Caption
     range_label = "hôm nay" if days_back == 0 else f"{days_back + 1} ngày gần nhất"
-    st.caption(f"📅 Hiển thị HĐ {range_label} · Tổng: {len(invoices)} HĐ")
+    pdt_note = f" · {len(pdts)} phiếu ĐT" if pdts else ""
+    st.caption(f"📅 {range_label} · {len(invoices)} HĐ{pdt_note}")
 
-    # Filter theo keyword
-    filtered = _filter_invoices(invoices, keyword)
-    if keyword and len(filtered) != len(invoices):
-        st.caption(f"🔍 Lọc còn: {len(filtered)} HĐ")
+    # Filter
+    filtered = _filter_items(all_items, keyword)
+    if keyword and len(filtered) != len(all_items):
+        st.caption(f"🔍 Lọc còn: {len(filtered)} mục")
 
     # Render list
     if not filtered:
-        if keyword:
-            st.markdown(
-                "<div style='background:#fafafa;border:1px dashed #ddd;"
-                "border-radius:10px;padding:24px 16px;text-align:center;"
-                "color:#999;margin:8px 0;'>"
-                "Không tìm thấy hóa đơn nào khớp"
-                "</div>",
-                unsafe_allow_html=True
-            )
-        else:
-            st.markdown(
-                "<div style='background:#fafafa;border:1px dashed #ddd;"
-                "border-radius:10px;padding:24px 16px;text-align:center;"
-                f"color:#999;margin:8px 0;'>"
-                f"Chưa có hóa đơn {range_label}"
-                "</div>",
-                unsafe_allow_html=True
-            )
+        msg = "Không tìm thấy mục nào khớp" if keyword else f"Chưa có giao dịch {range_label}"
+        st.markdown(
+            f"<div style='background:#fafafa;border:1px dashed #ddd;"
+            f"border-radius:10px;padding:24px 16px;text-align:center;"
+            f"color:#999;margin:8px 0;'>{msg}</div>",
+            unsafe_allow_html=True
+        )
     else:
-        for inv in filtered:
-            _render_invoice_card(inv)
+        for item in filtered:
+            if item["_type"] == "hd":
+                _render_invoice_card(item)
+            else:
+                _render_pdt_card(item)
 
-    # Nút "Xem cũ hơn" + "Quay về hôm nay" cùng hàng
+    # ── Nút xem cũ hơn / quay về hôm nay ──
     st.markdown(
         """<style>
         .st-key-lichsu-actions-zone div[data-testid="stHorizontalBlock"] {
@@ -478,17 +532,14 @@ def module_lich_su():
 
 
 # ════════════════════════════════════════════════════════════════
-# RENDER — Kết quả tìm SĐT/Mã (mọi ngày, các CN có quyền)
+# RENDER — Kết quả tìm SĐT/Mã (mọi ngày)
 # ════════════════════════════════════════════════════════════════
 
 def _render_find_results(keyword: str):
     cn_list = get_accessible_branches() or [get_active_branch()]
-
     with st.spinner("Đang tìm hóa đơn..."):
         results = search_hoa_don_pos(keyword, cn_list, limit=30)
-
-    st.caption(f"🔎 Kết quả tìm '{keyword}' (mọi ngày): {len(results)} HĐ")
-
+    st.caption(f"🔎 Kết quả tìm '{keyword}': {len(results)} HĐ")
     if not results:
         st.markdown(
             "<div style='background:#fafafa;border:1px dashed #ddd;"
@@ -499,12 +550,9 @@ def _render_find_results(keyword: str):
             unsafe_allow_html=True
         )
         return
-
     for inv in results:
         _render_invoice_card(inv)
-
     st.markdown("<div style='margin-top:14px;'></div>", unsafe_allow_html=True)
-    if st.button("✕ Xóa tìm kiếm", use_container_width=True,
-                 key="lichsu_clear_find"):
+    if st.button("✕ Xóa tìm kiếm", use_container_width=True, key="lichsu_clear_find"):
         st.session_state["lichsu_find_kw"] = ""
         st.rerun()
