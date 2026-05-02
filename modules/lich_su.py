@@ -159,6 +159,8 @@ def _dialog_chi_tiet(inv: dict):
     if inv.get("giam_gia_don", 0) > 0:
         rows.append(("Giảm giá đơn", "− " + fmt_vnd(inv["giam_gia_don"])))
     rows.append(("Khách cần trả", fmt_vnd(inv.get("khach_can_tra", 0))))
+    if inv.get("tien_coc_da_thu", 0) > 0:
+        rows.append(("🪙 Tiền cọc đã thu", fmt_vnd(inv["tien_coc_da_thu"])))
     if inv.get("tien_mat", 0) > 0:
         rows.append(("💵 Tiền mặt", fmt_vnd(inv["tien_mat"])))
     if inv.get("chuyen_khoan", 0) > 0:
