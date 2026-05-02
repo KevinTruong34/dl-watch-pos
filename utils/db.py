@@ -498,6 +498,108 @@ def load_phieu_doi_tra_pos_history(chi_nhanh: str, from_date_iso: str) -> list[d
         return []
 
 
+
+# ════════════════════════════════════════════════════════════════
+# ĐẶT HÀNG THEO YÊU CẦU (Bước 8)
+# ════════════════════════════════════════════════════════════════
+
+@st.cache_data(ttl=60)
+def load_phieu_dat_hang(chi_nhanh: str,
+                        trang_thai_filter: list | None = None) -> list:
+    """
+    Load phiếu đặt hàng của 1 chi nhánh, sort newest-first.
+    trang_thai_filter=None → tất cả. Thường truyền ['Chờ đặt', 'Chờ lấy'].
+    """
+    try:
+        q = supabase.table("phieu_dat_hang").select("*") \
+            .eq("chi_nhanh", chi_nhanh) \
+            .order("created_at", desc=True) \
+            .limit(300)
+        if trang_thai_filter:
+            q = q.in_("trang_thai", trang_thai_filter)
+        res = q.execute()
+        return res.data or []
+    except Exception as e:
+        st.error(f"Lỗi tải phiếu đặt hàng: {e}")
+        return []
+
+
+def load_phieu_dat_hang_by_ma(ma_phieu: str) -> dict | None:
+    """Load 1 phiếu đặt hàng theo mã."""
+    if not ma_phieu:
+        return None
+    try:
+        res = supabase.table("phieu_dat_hang").select("*") \
+            .eq("ma_phieu", ma_phieu).limit(1).execute()
+        return res.data[0] if res.data else None
+    except Exception:
+        return None
+
+
+def tao_phieu_dat_hang_rpc(payload: dict) -> dict:
+    """Tạo phiếu đặt hàng mới. Returns {ok, ma_phieu} hoặc {ok: false, error}."""
+    try:
+        res = supabase.rpc("tao_phieu_dat_hang", {"payload": payload}).execute()
+        result = res.data
+        if isinstance(result, list):
+            result = result[0] if result else {}
+        if not isinstance(result, dict):
+            return {"ok": False, "error": "RPC trả về kết quả không hợp lệ"}
+        return result
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def chuyen_cho_lay_rpc(ma_phieu: str) -> dict:
+    """Chuyển trạng thái Chờ đặt → Chờ lấy."""
+    try:
+        res = supabase.rpc("chuyen_cho_lay_dat_hang",
+                           {"p_ma_phieu": ma_phieu}).execute()
+        result = res.data
+        if isinstance(result, list):
+            result = result[0] if result else {}
+        if not isinstance(result, dict):
+            return {"ok": False, "error": "RPC trả về kết quả không hợp lệ"}
+        return result
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def hoan_thanh_dat_hang_rpc(payload: dict) -> dict:
+    """
+    Hoàn thành phiếu đặt — auto tạo HĐ POS (bypass stock check).
+    Returns {ok, ma_phieu, ma_hd} hoặc {ok: false, error}.
+    """
+    try:
+        res = supabase.rpc("hoan_thanh_dat_hang", {"payload": payload}).execute()
+        result = res.data
+        if isinstance(result, list):
+            result = result[0] if result else {}
+        if not isinstance(result, dict):
+            return {"ok": False, "error": "RPC trả về kết quả không hợp lệ"}
+        return result
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def huy_phieu_dat_hang_rpc(ma_phieu: str, cancelled_by: str,
+                            coc_xu_ly: str | None = None) -> dict:
+    """Hủy phiếu đặt hàng. coc_xu_ly: 'Trả cọc' | 'Giữ cọc' | None."""
+    try:
+        res = supabase.rpc("huy_phieu_dat_hang", {
+            "p_ma_phieu":     ma_phieu,
+            "p_cancelled_by": cancelled_by or "",
+            "p_coc_xu_ly":    coc_xu_ly or "",
+        }).execute()
+        result = res.data
+        if isinstance(result, list):
+            result = result[0] if result else {}
+        if not isinstance(result, dict):
+            return {"ok": False, "error": "RPC trả về kết quả không hợp lệ"}
+        return result
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
 # ════════════════════════════════════════════════════════════════
 # VALIDATION HELPERS
 # ════════════════════════════════════════════════════════════════
