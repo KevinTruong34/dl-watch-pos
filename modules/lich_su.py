@@ -58,24 +58,29 @@ def _parse_iso(s: str) -> datetime:
         return datetime.min.replace(tzinfo=ZoneInfo("UTC"))
 
 
+def _to_vn(iso_str: str) -> "datetime":
+    """
+    Parse ISO string từ Supabase → datetime giờ VN.
+    Supabase trả naive datetime (không có tzinfo) → assume UTC → convert VN.
+    """
+    dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=ZoneInfo("UTC"))
+    return dt.astimezone(_TZ_VN)
+
+
 def _format_invoice_time(iso_str: str) -> str:
-    """
-    ISO string từ DB -> '14:23 · 30/04'.
-    DB lưu giờ VN nhưng label +00:00 (RPC dùng now() AT TIME ZONE 'Asia/Ho_Chi_Minh').
-    Không convert timezone -- dùng thẳng giá trị số.
-    """
+    """ISO string từ Supabase → '13:33 · 02/05' (giờ VN)."""
     try:
-        dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
-        return dt.strftime("%H:%M · %d/%m")
+        return _to_vn(iso_str).strftime("%H:%M · %d/%m")
     except Exception:
         return iso_str[:16]
 
 
 def _format_invoice_date(iso_str: str) -> str:
-    """ISO string từ DB -> '30/04/2026 14:23'. Xem note _format_invoice_time."""
+    """ISO string từ Supabase → '02/05/2026 13:33' (giờ VN)."""
     try:
-        dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
-        return dt.strftime("%d/%m/%Y %H:%M")
+        return _to_vn(iso_str).strftime("%d/%m/%Y %H:%M")
     except Exception:
         return iso_str
 
