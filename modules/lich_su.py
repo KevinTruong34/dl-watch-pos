@@ -59,23 +59,23 @@ def _parse_iso(s: str) -> datetime:
 
 
 def _format_invoice_time(iso_str: str) -> str:
-    """UTC ISO → '14:23 · 30/04' (giờ VN)."""
+    """
+    ISO string từ DB -> '14:23 · 30/04'.
+    DB lưu giờ VN nhưng label +00:00 (RPC dùng now() AT TIME ZONE 'Asia/Ho_Chi_Minh').
+    Không convert timezone -- dùng thẳng giá trị số.
+    """
     try:
         dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=ZoneInfo("UTC"))
-        return dt.astimezone(_TZ_VN).strftime("%H:%M · %d/%m")
+        return dt.strftime("%H:%M · %d/%m")
     except Exception:
         return iso_str[:16]
 
 
 def _format_invoice_date(iso_str: str) -> str:
-    """UTC ISO → '30/04/2026 14:23' (giờ VN)."""
+    """ISO string từ DB -> '30/04/2026 14:23'. Xem note _format_invoice_time."""
     try:
         dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=ZoneInfo("UTC"))
-        return dt.astimezone(_TZ_VN).strftime("%d/%m/%Y %H:%M")
+        return dt.strftime("%d/%m/%Y %H:%M")
     except Exception:
         return iso_str
 
