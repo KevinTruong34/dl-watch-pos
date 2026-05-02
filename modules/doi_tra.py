@@ -123,6 +123,20 @@ def _render_section_hd_goc(hd_goc: dict, sl_da_tra: dict[str, int]):
         ten_hang = ct.get("ten_hang", "")
         sl_goc   = int(ct.get("so_luong", 0) or 0)
         don_gia  = int(ct.get("don_gia", 0) or 0)
+        loai_sp  = ct.get("loai_sp", "Hàng hóa") or "Hàng hóa"
+
+        # Dịch vụ không cho đổi/trả
+        if loai_sp == "Dịch vụ":
+            st.markdown(
+                f"<div style='background:#f4f4f4;border:1px solid #e0e0e0;"
+                f"border-radius:8px;padding:8px 10px;margin:6px 0;opacity:0.55;'>"
+                f"<div style='font-weight:500;color:#888;font-size:0.88rem;'>"
+                f"{ten_hang}</div>"
+                f"<div style='font-size:0.78rem;color:#aaa;'>🛠 Dịch vụ — không áp dụng đổi/trả</div>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+            continue
 
         sl_con_lai = max(0, sl_goc - sl_da_tra.get(ma_hang, 0))
 
@@ -280,7 +294,12 @@ def _render_section_moi(chi_nhanh: str):
 
 def _render_search_card_moi(hh: dict):
     is_dich_vu = hh.get("loai_sp") == "Dịch vụ"
-    is_oos = (not is_dich_vu) and (hh["ton"] == 0)
+
+    # Issue 2: không cho mua mới dịch vụ trong phiếu đổi/trả
+    if is_dich_vu:
+        return
+
+    is_oos = hh["ton"] == 0
 
     if is_oos:
         st.markdown(
@@ -294,10 +313,7 @@ def _render_search_card_moi(hh: dict):
         )
         return
 
-    if is_dich_vu:
-        info = f"{hh['ma_hang']} · 🛠 Dịch vụ · {fmt_vnd(hh['gia_ban'])}"
-    else:
-        info = f"{hh['ma_hang']} · Tồn: {hh['ton']} · {fmt_vnd(hh['gia_ban'])}"
+    info = f"{hh['ma_hang']} · Tồn: {hh['ton']} · {fmt_vnd(hh['gia_ban'])}"
 
     if st.button(
         f"{hh['ten_hang']}\n{info}",
