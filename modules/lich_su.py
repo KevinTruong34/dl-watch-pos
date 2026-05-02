@@ -3,7 +3,7 @@ Module lịch sử hóa đơn POS.
 
 UI flow:
 - Mặc định load HĐ + phiếu đổi/trả hôm nay của CN đang chọn (merge, sort newest-first)
-- Search SĐT / mã HĐ / tên KH → filter client-side
+- Ô tìm SĐT/mã → tìm mọi ngày, tất cả CN có quyền
 - Bấm "Xem cũ hơn" → load thêm 1 ngày (mỗi click)
 - Bấm vào card HĐ → mở modal chi tiết
 - Bấm vào card phiếu đổi/trả → mở modal chi tiết phiếu (top-level, tránh nested dialog)
@@ -13,6 +13,7 @@ UI flow:
 
 import streamlit as st
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from utils.auth import (
     get_active_branch, get_accessible_branches, get_user, is_admin,
@@ -27,6 +28,8 @@ from modules.doi_tra import (
     open_doi_tra, is_doi_tra_active, render_man_doi_tra,
     dialog_chi_tiet_pdt, dialog_confirm_huy_pdt,
 )
+
+_TZ_VN = ZoneInfo("Asia/Ho_Chi_Minh")
 
 
 # ════════════════════════════════════════════════════════════════
@@ -44,60 +47,37 @@ def _get_from_date_iso() -> str:
     return from_date.strftime("%Y-%m-%dT00:00:00+07:00")
 
 
+def _parse_iso(s: str) -> datetime:
+    """Parse ISO string → tz-aware datetime. Dùng để sort nhất quán."""
+    try:
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=ZoneInfo("UTC"))
+        return dt
+    except Exception:
+        return datetime.min.replace(tzinfo=ZoneInfo("UTC"))
+
+
 def _format_invoice_time(iso_str: str) -> str:
+    """UTC ISO → '14:23 · 30/04' (giờ VN)."""
     try:
         dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
-        return dt.strftime("%H:%M · %d/%m")
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=ZoneInfo("UTC"))
+        return dt.astimezone(_TZ_VN).strftime("%H:%M · %d/%m")
     except Exception:
         return iso_str[:16]
 
 
 def _format_invoice_date(iso_str: str) -> str:
+    """UTC ISO → '30/04/2026 14:23' (giờ VN)."""
     try:
         dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
-        return dt.strftime("%d/%m/%Y %H:%M")
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=ZoneInfo("UTC"))
+        return dt.astimezone(_TZ_VN).strftime("%d/%m/%Y %H:%M")
     except Exception:
         return iso_str
-
-
-def _filter_items(items: list[dict], keyword: str) -> list[dict]:
-    """Filter danh sách HĐ + phiếu đổi/trả theo keyword (sdt/mã/tên KH)."""
-    kw = keyword.strip().lower()
-    if not kw:
-        return items
-    out = []
-    for item in items:
-        if item.get("_type") == "pdt":
-            searchable = " ".join([
-                item.get("ma_pdt", ""),
-                item.get("ma_hd_goc", ""),
-                item.get("sdt_khach", "") or "",
-                item.get("ten_khach", "") or "",
-            ]).lower()
-        else:
-            searchable = " ".join([
-                item.get("ma_hd", ""),
-                item.get("sdt_khach", "") or "",
-                item.get("ten_khach", "") or "",
-            ]).lower()
-        if kw in searchable:
-            out.append(item)
-    return out
-
-
-def _filter_invoices(invoices: list[dict], keyword: str) -> list[dict]:
-    """Filter chỉ HĐ (dùng cho _render_find_results)."""
-    kw = keyword.strip().lower()
-    if not kw:
-        return invoices
-    out = []
-    for inv in invoices:
-        ma_hd  = (inv.get("ma_hd") or "").lower()
-        sdt    = (inv.get("sdt_khach") or "").lower()
-        ten_kh = (inv.get("ten_khach") or "").lower()
-        if kw in ma_hd or kw in sdt or kw in ten_kh:
-            out.append(inv)
-    return out
 
 
 # ════════════════════════════════════════════════════════════════
@@ -196,7 +176,6 @@ def _dialog_chi_tiet(inv: dict):
     summary_html += "</div>"
     st.markdown(summary_html, unsafe_allow_html=True)
 
-    # Section "Đã đổi/trả" — chỉ render nếu HĐ chưa hủy
     if not is_cancelled:
         pdt_list = load_phieu_doi_tra_by_hd(inv["ma_hd"])
         if pdt_list:
@@ -239,8 +218,7 @@ def _dialog_chi_tiet(inv: dict):
 def _render_pdt_row_in_invoice(pdt: dict):
     """
     1 dòng phiếu đổi/trả trong modal HĐ gốc.
-    Bấm vào → set state lichsu_view_pdt + rerun về top-level
-    (tránh nested @st.dialog crash).
+    Set state → rerun ra top-level để tránh nested @st.dialog crash.
     """
     is_cancelled = pdt.get("trang_thai") == "Đã hủy"
     ma_pdt = pdt.get("ma_pdt", "")
@@ -280,7 +258,6 @@ def _render_pdt_row_in_invoice(pdt: dict):
         )
     with st.container(key=container_key):
         if st.button(btn_label, key=f"ls_pdt_btn_{ma_pdt}", use_container_width=True):
-            # Set state rồi rerun ra top-level — tránh nested dialog
             st.session_state["lichsu_view_pdt"] = pdt
             st.rerun()
 
@@ -330,18 +307,14 @@ def _dialog_confirm_huy(inv: dict):
 
 def _render_invoice_card(inv: dict):
     is_cancelled = inv.get("trang_thai") == "Đã hủy"
-
-    ma_hd  = inv.get("ma_hd", "")
-    ten_kh = inv.get("ten_khach") or "Khách lẻ"
-    sdt    = inv.get("sdt_khach") or ""
-    tien   = inv.get("khach_can_tra", 0)
+    ma_hd     = inv.get("ma_hd", "")
+    ten_kh    = inv.get("ten_khach") or "Khách lẻ"
+    sdt       = inv.get("sdt_khach") or ""
+    tien      = inv.get("khach_can_tra", 0)
     thoi_gian = _format_invoice_time(inv.get("created_at", ""))
     nguoi_ban = inv.get("nguoi_ban") or ""
 
-    sub_kh = ten_kh
-    if sdt:
-        sub_kh += f" · {sdt}"
-
+    sub_kh = ten_kh + (f" · {sdt}" if sdt else "")
     cancel_tag = " [ĐÃ HỦY]" if is_cancelled else ""
     btn_label = (
         f"{ma_hd}{cancel_tag} — {fmt_vnd(tien)}\n"
@@ -361,7 +334,7 @@ def _render_invoice_card(inv: dict):
 
 
 # ════════════════════════════════════════════════════════════════
-# RENDER — Card phiếu đổi/trả (hiện riêng trong danh sách)
+# RENDER — Card phiếu đổi/trả
 # ════════════════════════════════════════════════════════════════
 
 def _render_pdt_card(pdt: dict):
@@ -384,7 +357,6 @@ def _render_pdt_card(pdt: dict):
 
     sub_kh = ten_kh + (f" · {sdt}" if sdt else "")
     cancel_tag = " [ĐÃ HỦY]" if is_cancelled else ""
-
     btn_label = (
         f"↔ {ma_pdt}{cancel_tag} — {loai} · {tien_text}\n"
         f"{thoi_gian}  ·  {sub_kh}\n"
@@ -408,14 +380,13 @@ def _render_pdt_card(pdt: dict):
 # ════════════════════════════════════════════════════════════════
 
 def module_lich_su():
-    # Nếu đang ở màn Đổi/Trả → render full-screen
     if is_doi_tra_active():
         render_man_doi_tra()
         return
 
     chi_nhanh = get_active_branch()
 
-    # ── Pending dialogs — render ở top-level (tránh nested dialog) ──
+    # ── Pending dialogs — top-level ──
     pending_huy = st.session_state.get("lichsu_confirm_huy")
     if pending_huy:
         _dialog_confirm_huy(pending_huy)
@@ -424,7 +395,6 @@ def module_lich_su():
     if pending_huy_pdt:
         dialog_confirm_huy_pdt(pending_huy_pdt)
 
-    # F1 fix: pop trước khi gọi → dialog mở 1 lần, đóng clean khi user nhấn X
     pending_view_pdt = st.session_state.pop("lichsu_view_pdt", None)
     if pending_view_pdt:
         dialog_chi_tiet_pdt(pending_view_pdt)
@@ -436,7 +406,7 @@ def module_lich_su():
         unsafe_allow_html=True
     )
 
-    # ── Ô tìm HĐ theo SĐT/Mã (mọi ngày, tất cả CN có quyền) ──
+    # ── Ô tìm HĐ theo SĐT/Mã (mọi ngày) ──
     with st.container(key="numkb-tel-lichsu-find"):
         find_kw = st.text_input(
             "Tìm HĐ theo SĐT hoặc mã",
@@ -449,14 +419,6 @@ def module_lich_su():
         _render_find_results(find_kw.strip())
         return
 
-    # ── Ô lọc trong danh sách hiện tại ──
-    keyword = st.text_input(
-        "Lọc danh sách",
-        placeholder="Lọc trong danh sách bên dưới...",
-        key="lichsu_search_kw",
-        label_visibility="collapsed",
-    )
-
     # ── Load dữ liệu ──
     from_date_iso = _get_from_date_iso()
     days_back = _get_days_back()
@@ -465,34 +427,28 @@ def module_lich_su():
         invoices = load_hoa_don_pos_history(chi_nhanh, from_date_iso)
         pdts     = load_phieu_doi_tra_pos_history(chi_nhanh, from_date_iso)
 
-    # Merge + sort newest-first
+    # Merge + sort newest-first bằng datetime thực (không sort string)
     all_items = (
         [{"_type": "hd",  **h} for h in invoices] +
         [{"_type": "pdt", **p} for p in pdts]
     )
-    all_items.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+    all_items.sort(key=lambda x: _parse_iso(x.get("created_at", "")), reverse=True)
 
     # Caption
     range_label = "hôm nay" if days_back == 0 else f"{days_back + 1} ngày gần nhất"
     pdt_note = f" · {len(pdts)} phiếu ĐT" if pdts else ""
     st.caption(f"📅 {range_label} · {len(invoices)} HĐ{pdt_note}")
 
-    # Filter
-    filtered = _filter_items(all_items, keyword)
-    if keyword and len(filtered) != len(all_items):
-        st.caption(f"🔍 Lọc còn: {len(filtered)} mục")
-
     # Render list
-    if not filtered:
-        msg = "Không tìm thấy mục nào khớp" if keyword else f"Chưa có giao dịch {range_label}"
+    if not all_items:
         st.markdown(
             f"<div style='background:#fafafa;border:1px dashed #ddd;"
             f"border-radius:10px;padding:24px 16px;text-align:center;"
-            f"color:#999;margin:8px 0;'>{msg}</div>",
+            f"color:#999;margin:8px 0;'>Chưa có giao dịch {range_label}</div>",
             unsafe_allow_html=True
         )
     else:
-        for item in filtered:
+        for item in all_items:
             if item["_type"] == "hd":
                 _render_invoice_card(item)
             else:
