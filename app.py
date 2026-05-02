@@ -255,12 +255,12 @@ render_session_warning_banner()
 
 
 # ════════════════════════════════════════════════════════════════
-# MAIN — Tabs Bán hàng / Lịch sử
+# MAIN — Tabs Bán hàng / Lịch sử / Đặt hàng
 # ════════════════════════════════════════════════════════════════
 
 tab_choice = st.pills(
     "main_nav",
-    ["🛒 Bán hàng", "📋 Lịch sử"],
+    ["🛒 Bán hàng", "📋 Lịch sử", "📦 Đặt hàng"],
     default="🛒 Bán hàng",
     label_visibility="collapsed",
     key="main_tab",
@@ -276,3 +276,7 @@ if tab_choice == "🛒 Bán hàng":
 elif tab_choice == "📋 Lịch sử":
     from modules.lich_su import module_lich_su
     module_lich_su()
+
+elif tab_choice == "📦 Đặt hàng":
+    from modules.dat_hang import module_dat_hang
+    module_dat_hang()
