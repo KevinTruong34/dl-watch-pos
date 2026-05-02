@@ -345,7 +345,7 @@ def search_hoa_don_pos(keyword: str, chi_nhanh_list: list[str],
 
 
 def load_hoa_don_pos_by_ma(ma_hd: str) -> dict | None:
-    """Load 1 HĐ POS theo mã (kèm items). Trả về None nếu không có."""
+    """Load 1 HĐ POS theo mã (kèm items + loai_sp). Trả về None nếu không có."""
     if not ma_hd:
         return None
     try:
@@ -356,7 +356,20 @@ def load_hoa_don_pos_by_ma(ma_hd: str) -> dict | None:
         h = res.data[0]
         res_ct = supabase.table("hoa_don_pos_ct").select("*") \
             .eq("ma_hd", ma_hd).execute()
-        h["items"] = res_ct.data or []
+        items = res_ct.data or []
+
+        # Enrich với loai_sp từ hang_hoa (cần để UI đổi/trả biết skip Dịch vụ)
+        if items:
+            ma_hang_list = list({ct["ma_hang"] for ct in items if ct.get("ma_hang")})
+            res_hh = supabase.table("hang_hoa") \
+                .select("ma_hang,loai_sp") \
+                .in_("ma_hang", ma_hang_list).execute()
+            loai_map = {r["ma_hang"]: (r.get("loai_sp") or "Hàng hóa")
+                        for r in (res_hh.data or [])}
+            for ct in items:
+                ct["loai_sp"] = loai_map.get(ct.get("ma_hang", ""), "Hàng hóa")
+
+        h["items"] = items
         return h
     except Exception:
         return None
