@@ -617,17 +617,23 @@ def render_man_doi_tra():
 # Helpers ngày giờ
 # ════════════════════════════════════════════════════════════════
 
+def _to_vn(iso_str: str) -> "datetime":
+    """
+    Parse ISO string từ Supabase → datetime giờ VN.
+    Supabase trả naive datetime (không có tzinfo) → assume UTC → convert VN.
+    """
+    dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=ZoneInfo("UTC"))
+    return dt.astimezone(_TZ_VN)
+
+
 def _hd_age_days(iso_str: str) -> int:
-    """
-    Số ngày từ HĐ tới hôm nay.
-    DB lưu giờ VN label +00:00 -- re-label thành VN timezone trước khi so sánh.
-    """
+    """Số ngày từ HĐ tới hôm nay (giờ VN)."""
     if not iso_str:
         return 0
     try:
-        dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
-        # Re-label: giá trị số là VN local time, không phải UTC
-        dt_vn = dt.replace(tzinfo=_TZ_VN)
+        dt_vn = _to_vn(iso_str)
         now_vn = datetime.now(_TZ_VN)
         delta = now_vn - dt_vn
         return max(0, delta.days)
@@ -636,12 +642,11 @@ def _hd_age_days(iso_str: str) -> int:
 
 
 def _fmt_dt(iso_str: str) -> str:
-    """ISO từ DB -> '30/04/2026 14:23'. Không convert tz (xem _hd_age_days)."""
+    """ISO từ Supabase → '02/05/2026 13:33' (giờ VN)."""
     if not iso_str:
         return ""
     try:
-        dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
-        return dt.strftime("%d/%m/%Y %H:%M")
+        return _to_vn(iso_str).strftime("%d/%m/%Y %H:%M")
     except Exception:
         return iso_str
 
