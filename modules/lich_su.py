@@ -432,6 +432,11 @@ def module_lich_su():
         invoices = load_hoa_don_pos_history(chi_nhanh, from_date_iso)
         pdts     = load_phieu_doi_tra_pos_history(chi_nhanh, from_date_iso)
 
+    # Ẩn HĐ + phiếu đã hủy khỏi tab Lịch sử POS
+    # (hiển thị bên web app là đủ để tra cứu)
+    invoices = [h for h in invoices if h.get("trang_thai") != "Đã hủy"]
+    pdts     = [p for p in pdts     if p.get("trang_thai") != "Đã hủy"]
+
     # Merge + sort newest-first bằng datetime thực (không sort string)
     all_items = (
         [{"_type": "hd",  **h} for h in invoices] +
@@ -500,6 +505,8 @@ def _render_find_results(keyword: str):
     cn_list = get_accessible_branches() or [get_active_branch()]
     with st.spinner("Đang tìm hóa đơn..."):
         results = search_hoa_don_pos(keyword, cn_list, limit=30)
+    # Ẩn HĐ đã hủy
+    results = [r for r in results if r.get("trang_thai") != "Đã hủy"]
     st.caption(f"🔎 Kết quả tìm '{keyword}': {len(results)} HĐ")
     if not results:
         st.markdown(
