@@ -87,6 +87,15 @@ def _clear_dat_hang_cache():
         pass
 
 
+def _reset_form_tao_moi():
+    """Reset toàn bộ form Tạo mới bằng cách tăng counter → tất cả widget re-render."""
+    cnt = st.session_state.get("dh_form_reset_cnt", 0) + 1
+    st.session_state["dh_form_reset_cnt"] = cnt
+    # Clear các state phụ
+    for k in ["dh_last_sdt", "dh_kh_result", "dh_confirm_hoan_thanh", "dh_confirm_huy"]:
+        st.session_state.pop(k, None)
+
+
 # ════════════════════════════════════════════════════════════════
 # MODAL — Chi tiết phiếu
 # ════════════════════════════════════════════════════════════════
@@ -499,6 +508,8 @@ def _render_tab_tao_moi():
     st.markdown(_DAT_HANG_CSS, unsafe_allow_html=True)
     chi_nhanh = get_active_branch()
     user = get_user() or {}
+    # Reset counter — tăng mỗi lần submit thành công → tất cả key widget thay đổi
+    rk = st.session_state.get("dh_form_reset_cnt", 0)
 
     st.markdown(
         "<div style='font-size:0.92rem;font-weight:600;color:#1a1a2e;"
@@ -512,15 +523,15 @@ def _render_tab_tao_moi():
         "margin:4px 0 6px;'>👤 Khách hàng</div>",
         unsafe_allow_html=True
     )
-    is_khach_le = st.checkbox("Khách lẻ (không cần SĐT)", key="dh_khach_le")
+    is_khach_le = st.checkbox("Khách lẻ (không cần SĐT)", key=f"dh_khach_le_{rk}")
 
     ma_kh = ten_kh = sdt_kh = ""
 
     if not is_khach_le:
-        with st.container(key="numkb-tel-dh-sdt"):
+        with st.container(key=f"numkb-tel-dh-sdt-{rk}"):
             sdt_input = st.text_input(
                 "SĐT:", placeholder="0xxx xxx xxx",
-                key="dh_sdt", max_chars=15, label_visibility="collapsed"
+                key=f"dh_sdt_{rk}", max_chars=15, label_visibility="collapsed"
             )
 
         from utils.db import clean_phone
@@ -541,7 +552,7 @@ def _render_tab_tao_moi():
             else:
                 st.caption("⚠️ Chưa có — nhập tên")
                 ten_input = st.text_input(
-                    "Tên khách:", key="dh_ten_moi",
+                    "Tên khách:", key=f"dh_ten_moi_{rk}",
                     label_visibility="collapsed",
                     placeholder="Tên khách hàng"
                 )
@@ -558,27 +569,27 @@ def _render_tab_tao_moi():
     )
     ten_hang = st.text_input(
         "Tên hàng *", placeholder="Tên hàng cần đặt...",
-        key="dh_ten_hang", label_visibility="collapsed"
+        key=f"dh_ten_hang_{rk}", label_visibility="collapsed"
     )
     mo_ta = st.text_input(
         "Mô tả thêm", placeholder="Màu sắc, model, kích thước...",
-        key="dh_mo_ta", label_visibility="collapsed"
+        key=f"dh_mo_ta_{rk}", label_visibility="collapsed"
     )
 
     col_sl, col_gia = st.columns(2)
     with col_sl:
         st.caption("Số lượng:")
-        with st.container(key="numkb-dh-sl"):
+        with st.container(key=f"numkb-dh-sl-{rk}"):
             so_luong = st.number_input(
                 "SL", min_value=1, max_value=99, value=1,
-                key="dh_sl", label_visibility="collapsed"
+                key=f"dh_sl_{rk}", label_visibility="collapsed"
             )
     with col_gia:
         st.caption("Đơn giá dự kiến:")
-        with st.container(key="numkb-dh-gia"):
+        with st.container(key=f"numkb-dh-gia-{rk}"):
             don_gia = st.number_input(
                 "Giá", min_value=0, value=0, step=10000,
-                key="dh_don_gia", label_visibility="collapsed"
+                key=f"dh_don_gia_{rk}", label_visibility="collapsed"
             )
     if don_gia > 0:
         st.caption(f"Tổng dự kiến: {fmt_vnd(don_gia * so_luong)}")
@@ -589,51 +600,51 @@ def _render_tab_tao_moi():
         "margin:14px 0 6px;'>💰 Đặt cọc (tùy chọn)</div>",
         unsafe_allow_html=True
     )
-    co_coc = st.checkbox("Có đặt cọc", key="dh_co_coc")
+    co_coc = st.checkbox("Có đặt cọc", key=f"dh_co_coc_{rk}")
 
     tien_coc = coc_tm = coc_ck = coc_the = 0
 
     if co_coc:
-        with st.container(key="numkb-dh-coc"):
+        with st.container(key=f"numkb-dh-coc-{rk}"):
             tien_coc = st.number_input(
                 "Số tiền cọc:", min_value=0, value=0, step=10000,
-                key="dh_tien_coc", label_visibility="collapsed"
+                key=f"dh_tien_coc_{rk}", label_visibility="collapsed"
             )
         if tien_coc > 0:
             st.caption(f"= {fmt_vnd(tien_coc)}")
             st.markdown("**PTTT cọc:**")
-            chia_coc = st.checkbox("Chia nhiều PTTT", key="dh_coc_chia")
+            chia_coc = st.checkbox("Chia nhiều PTTT", key=f"dh_coc_chia_{rk}")
 
             if not chia_coc:
                 pttt_coc = st.radio(
                     "PTTT cọc", ["💵 Tiền mặt", "🏦 Chuyển khoản", "💳 Thẻ"],
-                    horizontal=True, key="dh_coc_radio",
+                    horizontal=True, key=f"dh_coc_radio_{rk}",
                     label_visibility="collapsed"
                 )
                 coc_tm  = tien_coc if pttt_coc == "💵 Tiền mặt" else 0
                 coc_ck  = tien_coc if pttt_coc == "🏦 Chuyển khoản" else 0
                 coc_the = tien_coc if pttt_coc == "💳 Thẻ" else 0
             else:
-                with st.container(key="dh-coc-pttt-zone"):
+                with st.container(key=f"dh-coc-pttt-zone-{rk}"):
                     c1, c2, c3 = st.columns(3)
                     with c1:
                         st.caption("💵 Tiền mặt")
-                        with st.container(key="numkb-dh-coc-tm"):
+                        with st.container(key=f"numkb-dh-coc-tm-{rk}"):
                             coc_tm = st.number_input(
                                 "TM", min_value=0, value=0, step=10000,
-                                key="dh_coc_tm", label_visibility="collapsed")
+                                key=f"dh_coc_tm_{rk}", label_visibility="collapsed")
                     with c2:
                         st.caption("🏦 Chuyển khoản")
-                        with st.container(key="numkb-dh-coc-ck"):
+                        with st.container(key=f"numkb-dh-coc-ck-{rk}"):
                             coc_ck = st.number_input(
                                 "CK", min_value=0, value=0, step=10000,
-                                key="dh_coc_ck", label_visibility="collapsed")
+                                key=f"dh_coc_ck_{rk}", label_visibility="collapsed")
                     with c3:
                         st.caption("💳 Thẻ")
-                        with st.container(key="numkb-dh-coc-the"):
+                        with st.container(key=f"numkb-dh-coc-the-{rk}"):
                             coc_the = st.number_input(
                                 "The", min_value=0, value=0, step=10000,
-                                key="dh_coc_the", label_visibility="collapsed")
+                                key=f"dh_coc_the_{rk}", label_visibility="collapsed")
                 tong_coc_pttt = int(coc_tm) + int(coc_ck) + int(coc_the)
                 if tong_coc_pttt != tien_coc:
                     st.warning(
@@ -644,7 +655,7 @@ def _render_tab_tao_moi():
     # ── Ghi chú ──
     ghi_chu = st.text_input(
         "Ghi chú:", placeholder="Ghi chú thêm...",
-        key="dh_ghi_chu", label_visibility="collapsed"
+        key=f"dh_ghi_chu_{rk}", label_visibility="collapsed"
     )
 
     # ── Validate + Submit ──
@@ -665,7 +676,7 @@ def _render_tab_tao_moi():
     if st.button(
         "✓ TẠO PHIẾU ĐẶT HÀNG",
         type="primary", use_container_width=True,
-        key="dh_submit",
+        key=f"dh_submit_{rk}",
         disabled=bool(errors),
         help=" · ".join(errors) if errors else None,
     ):
@@ -693,10 +704,8 @@ def _render_tab_tao_moi():
             _clear_dat_hang_cache()
             ma_moi = r.get("ma_phieu", "")
             st.toast(f"Đã tạo {ma_moi}", icon="✅")
-            # Reset form
-            for k in ["dh_sdt", "dh_ten_hang", "dh_mo_ta", "dh_ghi_chu",
-                      "dh_khach_le", "dh_co_coc", "dh_last_sdt", "dh_kh_result"]:
-                st.session_state.pop(k, None)
+            # Reset form — tăng counter → tất cả widget re-render với key mới
+            _reset_form_tao_moi()
             st.rerun()
         else:
             st.error(f"Lỗi: {r.get('error', 'Không xác định')}")
