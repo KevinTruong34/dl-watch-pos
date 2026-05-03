@@ -31,6 +31,143 @@ from modules.doi_tra import (
 
 _TZ_VN = ZoneInfo("Asia/Ho_Chi_Minh")
 
+_VN_MONTHS = {
+    1: "1", 2: "2", 3: "3", 4: "4", 5: "5", 6: "6",
+    7: "7", 8: "8", 9: "9", 10: "10", 11: "11", 12: "12",
+}
+
+
+_LICHSU_CSS = """
+<style>
+/* Header card */
+.st-key-ls-header-card {
+    background: #fff;
+    border: 1px solid #ececec;
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+}
+
+/* Search row layout */
+.st-key-ls-search-row div[data-testid="stHorizontalBlock"] {
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    gap: 8px !important;
+    width: 100% !important;
+    align-items: center !important;
+}
+.st-key-ls-search-row div[data-testid="stHorizontalBlock"] > div {
+    min-width: 0 !important;
+}
+.st-key-ls-search-row [data-testid="stBaseButton-secondary"] {
+    min-height: 44px !important;
+    border-radius: 10px !important;
+    padding: 0 12px !important;
+}
+
+/* Invoice card frame */
+[class*="st-key-ls-invcard-"] {
+    background: #fff;
+    border: 1px solid #ececec;
+    border-radius: 12px;
+    padding: 10px 10px 8px;
+    margin: 8px 0;
+    overflow: hidden;
+}
+[class*="st-key-ls-invcard-cancelled-"] {
+    opacity: 0.7;
+}
+
+/* Force horizontal columns inside invoice cards */
+[class*="st-key-ls-invcard-"] div[data-testid="stHorizontalBlock"] {
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    gap: 10px !important;
+    align-items: center !important;
+    width: 100% !important;
+}
+[class*="st-key-ls-invcard-"] div[data-testid="stHorizontalBlock"] > div {
+    min-width: 0 !important;
+}
+
+/* Make the invoice click button a flat full-area click */
+[class*="st-key-ls-invbtn-"] button {
+    background: transparent !important;
+    border: none !important;
+    padding: 4px 4px !important;
+    text-align: left !important;
+    min-height: 0 !important;
+    box-shadow: none !important;
+}
+[class*="st-key-ls-invbtn-"] button p {
+    text-align: left !important;
+    margin: 0 !important;
+}
+[class*="st-key-ls-invbtn-"] button:hover {
+    background: #fafafa !important;
+}
+
+/* Action buttons row (xem cũ hơn / quay về hôm nay) */
+.st-key-lichsu-actions-zone [data-testid="stBaseButton-secondary"]:nth-of-type(1) {
+    border: 1px solid #ffd0d3 !important;
+    color: #e63946 !important;
+}
+
+/* Info banner */
+.ls-info-banner {
+    background: #fff5f5;
+    border: 1px solid #ffd0d3;
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin: 10px 0 6px;
+    color: #555;
+    font-size: 0.88rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.ls-info-banner b { color: #e63946; }
+</style>
+"""
+
+
+def _date_strip_html(iso_str: str) -> str:
+    """Tem ngày kiểu mockup: THG M / DD trên nền đỏ ở góc trái."""
+    try:
+        dt = _to_vn(iso_str)
+        thg = _VN_MONTHS.get(dt.month, str(dt.month))
+        dd  = f"{dt.day:02d}"
+        hhmm = dt.strftime("%H:%M")
+    except Exception:
+        thg, dd, hhmm = "—", "—", ""
+    return (
+        f"<div style='display:flex;flex-direction:column;align-items:center;"
+        f"width:54px;'>"
+        f"<div style='background:#e63946;color:#fff;font-size:0.62rem;"
+        f"font-weight:700;letter-spacing:0.5px;padding:2px 0;width:100%;"
+        f"text-align:center;border-top-left-radius:6px;"
+        f"border-top-right-radius:6px;'>THG {thg}</div>"
+        f"<div style='background:#fff;border:1px solid #f0f0f0;border-top:none;"
+        f"font-size:1.4rem;font-weight:800;color:#1a1a2e;width:100%;"
+        f"text-align:center;padding:2px 0;'>{dd}</div>"
+        f"<div style='font-size:0.7rem;color:#888;margin-top:4px;'>{hhmm}</div>"
+        f"</div>"
+    )
+
+
+def _status_pill_html(label: str, kind: str) -> str:
+    """kind: 'ok' | 'cancelled'."""
+    if kind == "cancelled":
+        bg, fg, icon = "#ffe5e5", "#c1121f", "✕"
+    else:
+        bg, fg, icon = "#e3f7e8", "#1a7f37", "✓"
+    return (
+        f"<span style='display:inline-flex;align-items:center;gap:4px;"
+        f"background:{bg};color:{fg};border-radius:999px;padding:3px 10px;"
+        f"font-size:0.78rem;font-weight:600;white-space:nowrap;'>"
+        f"{icon} {label}</span>"
+    )
+
 
 # ════════════════════════════════════════════════════════════════
 # HELPERS
@@ -318,26 +455,54 @@ def _render_invoice_card(inv: dict):
     ten_kh    = inv.get("ten_khach") or "Khách lẻ"
     sdt       = inv.get("sdt_khach") or ""
     tien      = inv.get("khach_can_tra", 0)
-    thoi_gian = _format_invoice_time(inv.get("created_at", ""))
-    nguoi_ban = inv.get("nguoi_ban") or ""
+    nguoi_ban = inv.get("nguoi_ban") or "—"
+    created   = inv.get("created_at", "")
 
-    sub_kh = ten_kh + (f" · {sdt}" if sdt else "")
-    cancel_tag = " [ĐÃ HỦY]" if is_cancelled else ""
-    btn_label = (
-        f"{ma_hd}{cancel_tag} — {fmt_vnd(tien)}\n"
-        f"{thoi_gian}  ·  {sub_kh}\n"
-        f"NV: {nguoi_ban}"
+    state = "cancelled" if is_cancelled else "active"
+    container_key = f"ls-invcard-{state}-{ma_hd}"
+    btn_key = f"ls-invbtn-{ma_hd}"
+
+    pill = _status_pill_html(
+        "Đã hủy" if is_cancelled else "Hoàn thành",
+        "cancelled" if is_cancelled else "ok",
     )
+    cancel_tag = ("<span style='background:#f0f0f0;color:#888;font-size:0.7rem;"
+                  "font-weight:600;padding:1px 6px;border-radius:4px;"
+                  "margin-left:6px;letter-spacing:0.5px;'>ĐÃ HỦY</span>"
+                  if is_cancelled else "")
+    sdt_html = (f"<span style='color:#888;'>📞 {sdt}</span>"
+                if sdt else "")
 
-    container_key = f"ls-card-zone-{'cancelled' if is_cancelled else 'active'}-{ma_hd}"
-    if is_cancelled:
-        st.markdown(
-            f"<style>.st-key-{container_key} button {{ opacity: 0.55 !important; }}</style>",
-            unsafe_allow_html=True
-        )
     with st.container(key=container_key):
-        if st.button(btn_label, key=f"ls_card_{ma_hd}", use_container_width=True):
-            _dialog_chi_tiet(inv)
+        col_date, col_body = st.columns([1, 5])
+        with col_date:
+            st.markdown(_date_strip_html(created), unsafe_allow_html=True)
+        with col_body:
+            st.markdown(
+                f"<div style='display:flex;justify-content:space-between;"
+                f"align-items:flex-start;gap:8px;'>"
+                f"<div style='font-family:monospace;font-size:1rem;"
+                f"font-weight:800;color:#1a1a2e;'>{ma_hd}{cancel_tag}</div>"
+                f"<div style='font-size:1.05rem;font-weight:800;color:#e63946;"
+                f"white-space:nowrap;'>{fmt_vnd(tien)}</div>"
+                f"</div>"
+                f"<div style='font-size:0.88rem;color:#1a1a2e;margin-top:2px;'>"
+                f"{ten_kh}</div>"
+                f"<div style='display:flex;justify-content:space-between;"
+                f"align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap;'>"
+                f"<div style='font-size:0.78rem;color:#888;display:flex;"
+                f"gap:10px;flex-wrap:wrap;'>"
+                f"<span>👤 NV: {nguoi_ban}</span>{sdt_html}</div>"
+                f"<div>{pill}</div>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+        # Click overlay — full-width transparent button
+        with st.container(key=btn_key):
+            if st.button("Xem chi tiết",
+                         key=f"ls_card_{ma_hd}",
+                         use_container_width=True):
+                _dialog_chi_tiet(inv)
 
 
 # ════════════════════════════════════════════════════════════════
@@ -351,35 +516,66 @@ def _render_pdt_card(pdt: dict):
     cl        = int(pdt.get("chenh_lech", 0) or 0)
     ten_kh    = pdt.get("ten_khach") or "Khách lẻ"
     sdt       = pdt.get("sdt_khach") or ""
-    nguoi     = pdt.get("nguoi_tao") or ""
-    thoi_gian = _format_invoice_time(pdt.get("created_at", ""))
+    nguoi     = pdt.get("nguoi_tao") or "—"
     ma_hd_goc = pdt.get("ma_hd_goc", "")
+    created   = pdt.get("created_at", "")
 
     if cl > 0:
-        tien_text = f"{fmt_vnd(cl)} (KH bù)"
+        tien_text = f"+{fmt_vnd(cl)}"
+        tien_color = "#e63946"
     elif cl < 0:
-        tien_text = f"{fmt_vnd(-cl)} (hoàn KH)"
+        tien_text = f"−{fmt_vnd(-cl)}"
+        tien_color = "#1a7f37"
     else:
         tien_text = "đổi ngang"
+        tien_color = "#888"
 
-    sub_kh = ten_kh + (f" · {sdt}" if sdt else "")
-    cancel_tag = " [ĐÃ HỦY]" if is_cancelled else ""
-    btn_label = (
-        f"↔ {ma_pdt}{cancel_tag} — {loai} · {tien_text}\n"
-        f"{thoi_gian}  ·  {sub_kh}\n"
-        f"Từ HĐ: {ma_hd_goc}  ·  NV: {nguoi}"
+    state = "cancelled" if is_cancelled else "active"
+    container_key = f"ls-invcard-{state}-pdt-{ma_pdt}"
+    btn_key = f"ls-invbtn-pdt-{ma_pdt}"
+
+    pill = _status_pill_html(
+        "Đã hủy" if is_cancelled else loai or "Đổi/Trả",
+        "cancelled" if is_cancelled else "ok",
     )
+    cancel_tag = ("<span style='background:#f0f0f0;color:#888;font-size:0.7rem;"
+                  "font-weight:600;padding:1px 6px;border-radius:4px;"
+                  "margin-left:6px;letter-spacing:0.5px;'>ĐÃ HỦY</span>"
+                  if is_cancelled else "")
+    sdt_html = (f"<span style='color:#888;'>📞 {sdt}</span>"
+                if sdt else "")
 
-    container_key = f"ls-pdt-card-{'cancelled' if is_cancelled else 'active'}-{ma_pdt}"
-    if is_cancelled:
-        st.markdown(
-            f"<style>.st-key-{container_key} button {{ opacity: 0.55 !important; }}</style>",
-            unsafe_allow_html=True
-        )
     with st.container(key=container_key):
-        if st.button(btn_label, key=f"ls_pdt_card_{ma_pdt}", use_container_width=True):
-            st.session_state["lichsu_view_pdt"] = pdt
-            st.rerun()
+        col_date, col_body = st.columns([1, 5])
+        with col_date:
+            st.markdown(_date_strip_html(created), unsafe_allow_html=True)
+        with col_body:
+            st.markdown(
+                f"<div style='display:flex;justify-content:space-between;"
+                f"align-items:flex-start;gap:8px;'>"
+                f"<div style='font-family:monospace;font-size:1rem;"
+                f"font-weight:800;color:#1a1a2e;'>↔ {ma_pdt}{cancel_tag}</div>"
+                f"<div style='font-size:1.05rem;font-weight:800;color:{tien_color};"
+                f"white-space:nowrap;'>{tien_text}</div>"
+                f"</div>"
+                f"<div style='font-size:0.88rem;color:#1a1a2e;margin-top:2px;'>"
+                f"{ten_kh} · <span style='color:#888;font-family:monospace;'>"
+                f"từ {ma_hd_goc}</span></div>"
+                f"<div style='display:flex;justify-content:space-between;"
+                f"align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap;'>"
+                f"<div style='font-size:0.78rem;color:#888;display:flex;"
+                f"gap:10px;flex-wrap:wrap;'>"
+                f"<span>👤 NV: {nguoi}</span>{sdt_html}</div>"
+                f"<div>{pill}</div>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+        with st.container(key=btn_key):
+            if st.button("Xem chi tiết",
+                         key=f"ls_pdt_card_{ma_pdt}",
+                         use_container_width=True):
+                st.session_state["lichsu_view_pdt"] = pdt
+                st.rerun()
 
 
 # ════════════════════════════════════════════════════════════════
@@ -406,21 +602,43 @@ def module_lich_su():
     if pending_view_pdt:
         dialog_chi_tiet_pdt(pending_view_pdt)
 
-    # ── Header ──
-    st.markdown(
-        f"<div style='font-size:1rem;font-weight:700;color:#1a1a2e;"
-        f"margin-bottom:8px;'>📋 Lịch sử — {chi_nhanh}</div>",
-        unsafe_allow_html=True
-    )
+    # ── Inject CSS ──
+    st.markdown(_LICHSU_CSS, unsafe_allow_html=True)
 
-    # ── Ô tìm HĐ theo SĐT/Mã (mọi ngày) ──
-    with st.container(key="numkb-tel-lichsu-find"):
-        find_kw = st.text_input(
-            "Tìm HĐ theo SĐT hoặc mã",
-            placeholder="🔎 Tìm HĐ theo SĐT hoặc mã (mọi ngày)...",
-            key="lichsu_find_kw",
-            label_visibility="collapsed",
+    # ── Header card ──
+    with st.container(key="ls-header-card"):
+        st.markdown(
+            f"<div style='display:flex;align-items:center;gap:10px;'>"
+            f"<div style='width:38px;height:38px;border-radius:10px;"
+            f"background:#fff5f5;display:flex;align-items:center;"
+            f"justify-content:center;font-size:1.2rem;'>📋</div>"
+            f"<div style='flex:1;min-width:0;'>"
+            f"<div style='font-size:1.05rem;font-weight:800;color:#1a1a2e;'>"
+            f"Lịch sử hóa đơn</div>"
+            f"<div style='font-size:0.85rem;color:#888;'>{chi_nhanh}</div>"
+            f"</div></div>",
+            unsafe_allow_html=True
         )
+
+    # ── Ô tìm HĐ theo SĐT/Mã (mọi ngày) + filter button ──
+    with st.container(key="ls-search-row"):
+        col_input, col_filter = st.columns([6, 1])
+        with col_input:
+            with st.container(key="numkb-tel-lichsu-find"):
+                find_kw = st.text_input(
+                    "Tìm HĐ theo SĐT hoặc mã",
+                    placeholder="🔎  Tìm theo mã HĐ, SĐT, tên khách...",
+                    key="lichsu_find_kw",
+                    label_visibility="collapsed",
+                )
+        with col_filter:
+            # Decorative filter button — toggles "show cancelled" (currently no-op for parity)
+            st.button(
+                "▽",
+                key="lichsu_filter_btn",
+                use_container_width=True,
+                help="Bộ lọc (sắp ra mắt)",
+            )
 
     if find_kw and find_kw.strip():
         _render_find_results(find_kw.strip())
@@ -446,10 +664,18 @@ def module_lich_su():
     )
     all_items.sort(key=lambda x: _parse_iso(x.get("created_at", "")), reverse=True)
 
-    # Caption
-    range_label = "hôm nay" if days_back == 0 else f"{days_back + 1} ngày gần nhất"
-    pdt_note = f" · {len(pdts)} phiếu ĐT" if pdts else ""
-    st.caption(f"📅 {range_label} · {len(invoices)} HĐ{pdt_note}")
+    # Info banner (kiểu mockup: "Hiển thị hóa đơn N ngày gần nhất · Tổng: M hóa đơn")
+    n_days = days_back + 1
+    total = len(invoices) + len(pdts)
+    pdt_note = f" · <b>{len(pdts)}</b> phiếu ĐT" if pdts else ""
+    st.markdown(
+        f"<div class='ls-info-banner'>"
+        f"<span style='font-size:1rem;'>📅</span>"
+        f"<span>Hiển thị hóa đơn <b>{n_days}</b> ngày gần nhất · "
+        f"Tổng: <b>{total}</b> hóa đơn{pdt_note}</span>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
 
     # Render list
     if not all_items:
