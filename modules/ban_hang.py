@@ -77,6 +77,7 @@ _CART_ROW_CSS = """
     background: #fff !important;
     border: 1px solid #eee !important;
     border-radius: 10px !important;
+    min-height: 44px !important;
 }
 [class*="st-key-pos-add-"] button p {
     text-align: left !important;
@@ -100,14 +101,24 @@ _CART_ROW_CSS = """
     background: #fff;
     border: 1px solid #ececec;
     border-radius: 12px;
-    padding: 6px 12px 4px;
+    padding: 6px 12px 10px;
 }
 
-/* Xóa hết button — red outline */
+/* Xóa hết button — red outline compact */
 .st-key-cart-header-zone [data-testid="stBaseButton-secondary"] {
     border: 1px solid #ffd0d3 !important;
     color: #e63946 !important;
-    min-height: 40px !important;
+    min-height: 34px !important;
+    padding: 0 10px !important;
+}
+/* Reduce top whitespace and vertical gaps for mobile-like UI */
+.main .block-container {
+    padding-top: 1rem !important;
+}
+.st-key-pos-search-card,
+.st-key-pos-cart-card,
+.st-key-pos-footer-card {
+    margin-top: 6px !important;
 }
 
 /* Footer breakdown card */
@@ -429,11 +440,11 @@ def _render_search_result_card(hh: dict):
         return
 
     if is_dich_vu:
-        info_line = f"{hh['ma_hang']} · 🛠 Dịch vụ · {fmt_vnd(hh['gia_ban'])}"
+        info_line = f"🛠 Dịch vụ · {hh['ten_hang']} · {hh['ma_hang']} · {fmt_vnd(hh['gia_ban'])}"
     else:
-        info_line = f"{hh['ma_hang']} · Tồn: {hh['ton']} · {fmt_vnd(hh['gia_ban'])}"
+        info_line = f"📦 Hàng hóa · {hh['ten_hang']} · {hh['ma_hang']} · {fmt_vnd(hh['gia_ban'])}"
 
-    btn_label = f"{hh['ten_hang']}\n{info_line}"
+    btn_label = info_line
     if st.button(
         btn_label,
         key=f"pos_add_{hh['ma_hang']}",
@@ -456,7 +467,7 @@ def _render_cart_section():
 
     with st.container(key="pos-cart-card"):
         with st.container(key="cart-header-zone"):
-            col_h, col_clear = st.columns([3, 2])
+            col_h, col_clear = st.columns([4, 1])
             with col_h:
                 st.markdown(
                     f"<div style='font-size:1rem;font-weight:700;color:#1a1a2e;"
@@ -465,8 +476,7 @@ def _render_cart_section():
                 )
             with col_clear:
                 if cart:
-                    if st.button("🗑  Xóa hết", key="pos_clear_cart_btn",
-                                 use_container_width=True):
+                    if st.button("🗑  Xóa hết", key="pos_clear_cart_btn"):
                         _dialog_clear_cart()
 
         if not cart:
@@ -495,18 +505,8 @@ def _render_cart_section():
 def _render_cart_line(line: dict):
     thanh_tien = _calc_thanh_tien(line)
     has_giam = line["giam_gia_dong"] > 0
-    is_dich_vu = line.get("loai_sp") == "Dịch vụ"
-    icon = "🛠" if is_dich_vu else "📦"
+    col_info, col_x = st.columns([6, 1])
 
-    col_thumb, col_info, col_x = st.columns([1, 5, 1])
-
-    with col_thumb:
-        st.markdown(
-            f"<div style='width:44px;height:44px;border-radius:8px;"
-            f"background:#f4f4f6;display:flex;align-items:center;"
-            f"justify-content:center;font-size:1.4rem;'>{icon}</div>",
-            unsafe_allow_html=True
-        )
 
     with col_info:
         suffix = f"  ·  giảm {fmt_vnd(line['giam_gia_dong'])}" if has_giam else ""
@@ -545,8 +545,8 @@ def _render_footer():
             bottom: 0;
             z-index: 30;
             background: transparent;
-            padding: 10px 0 calc(10px + env(safe-area-inset-bottom));
-            margin-top: 12px;
+            padding: 14px 0 calc(22px + env(safe-area-inset-bottom));
+            margin-top: 8px;
         }
         [class*="st-key-pos-footer-sticky"] [data-testid="stBaseButton-primary"] {
             min-height: 56px !important;
