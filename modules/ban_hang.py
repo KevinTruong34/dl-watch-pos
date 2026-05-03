@@ -398,15 +398,7 @@ def _render_search_section():
                         unsafe_allow_html=True
                     )
                 else:
-                    st.markdown(
-                        f"<div style='display:flex;align-items:center;gap:8px;"
-                        f"color:#888;font-size:0.85rem;margin:6px 2px 2px;'>"
-                        f"<span style='font-size:1.05rem;'>📦</span>"
-                        f"<span><b style='color:#555;'>{len(hh_list)}</b> sản phẩm "
-                        f"</span></div>",
-                        unsafe_allow_html=True
-                    )
-                return
+                    return
 
             results = _search_hang_hoa(keyword, hh_list, max_results=3)
 
