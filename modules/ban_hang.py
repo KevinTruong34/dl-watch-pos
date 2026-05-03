@@ -32,6 +32,7 @@ _CART_ROW_CSS = """
     flex-wrap: nowrap !important;
     gap: 8px !important;
     width: 100% !important;
+    align-items: center !important;
 }
 .st-key-cart-rows-zone div[data-testid="stHorizontalBlock"] > div,
 .st-key-cart-header-zone div[data-testid="stHorizontalBlock"] > div {
@@ -42,6 +43,99 @@ _CART_ROW_CSS = """
     .st-key-cart-header-zone div[data-testid="stHorizontalBlock"] {
         gap: 6px !important;
     }
+}
+
+/* Cart line — make info button look like a flat row, not a button */
+[class*="st-key-pos-edit-"] button {
+    background: transparent !important;
+    border: none !important;
+    text-align: left !important;
+    padding: 8px 6px !important;
+    min-height: 0 !important;
+    box-shadow: none !important;
+}
+[class*="st-key-pos-edit-"] button:hover {
+    background: #fafafa !important;
+}
+[class*="st-key-pos-edit-"] button p {
+    text-align: left !important;
+}
+
+/* × delete button — square, light border */
+[class*="st-key-pos-del-"] button {
+    min-height: 38px !important;
+    min-width: 38px !important;
+    padding: 0 !important;
+    border-radius: 8px !important;
+    color: #888 !important;
+}
+
+/* Search result card buttons — flat card style */
+[class*="st-key-pos-add-"] button {
+    text-align: left !important;
+    padding: 10px 12px !important;
+    background: #fff !important;
+    border: 1px solid #eee !important;
+    border-radius: 10px !important;
+}
+[class*="st-key-pos-add-"] button p {
+    text-align: left !important;
+    margin: 0 !important;
+}
+
+/* Search section — frame as card */
+.st-key-pos-search-card details {
+    background: #fff !important;
+    border: 1px solid #ececec !important;
+    border-radius: 12px !important;
+    padding: 4px 10px !important;
+}
+.st-key-pos-search-card summary p {
+    font-weight: 600 !important;
+    color: #1a1a2e !important;
+}
+
+/* Cart card frame */
+.st-key-pos-cart-card {
+    background: #fff;
+    border: 1px solid #ececec;
+    border-radius: 12px;
+    padding: 6px 12px 4px;
+}
+
+/* Xóa hết button — red outline */
+.st-key-cart-header-zone [data-testid="stBaseButton-secondary"] {
+    border: 1px solid #ffd0d3 !important;
+    color: #e63946 !important;
+    min-height: 40px !important;
+}
+
+/* Footer breakdown card */
+.st-key-pos-footer-card {
+    background: #fff;
+    border: 1px solid #ececec;
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+}
+
+/* Floating crown FAB (decorative) */
+.pos-fab-crown {
+    position: fixed;
+    right: 16px;
+    bottom: calc(16px + env(safe-area-inset-bottom));
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: #e63946;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 1.3rem;
+    box-shadow: 0 4px 12px rgba(230,57,70,0.35);
+    z-index: 25;
+    pointer-events: none;
 }
 </style>
 """
@@ -282,37 +376,46 @@ def _render_search_section():
     cart = _get_cart()
     expand_default = len(cart) == 0
 
-    with st.expander("🔍 Tìm hàng hóa", expanded=expand_default):
-        rk = st.session_state.get("pos_search_reset_cnt", 0)
-        keyword = st.text_input(
-            "Search input",
-            placeholder="Gõ mã hoặc tên hàng...",
-            key=f"pos_search_kw_{rk}",
-            label_visibility="collapsed",
-        )
+    with st.container(key="pos-search-card"):
+        with st.expander("🔍   Tìm hàng hóa", expanded=expand_default):
+            rk = st.session_state.get("pos_search_reset_cnt", 0)
+            keyword = st.text_input(
+                "Search input",
+                placeholder="Gõ mã hoặc tên hàng...",
+                key=f"pos_search_kw_{rk}",
+                label_visibility="collapsed",
+            )
 
-        if not keyword.strip():
-            if not hh_list:
-                # Phân biệt: rỗng thật vs lỗi load
-                st.markdown(
-                    "<div style='background:#fff8e0;border:1px solid #f0c36d;"
-                    "border-radius:8px;padding:10px 12px;margin:8px 0;"
-                    "font-size:0.85rem;color:#856404;'>"
-                    "⚠️ Không tải được danh sách hàng hóa. "
-                    "Kiểm tra kết nối mạng rồi thử lại."
-                    "</div>",
-                    unsafe_allow_html=True
-                )
-            return
+            if not keyword.strip():
+                if not hh_list:
+                    st.markdown(
+                        "<div style='background:#fff8e0;border:1px solid #f0c36d;"
+                        "border-radius:8px;padding:10px 12px;margin:8px 0;"
+                        "font-size:0.85rem;color:#856404;'>"
+                        "⚠️ Không tải được danh sách hàng hóa. "
+                        "Kiểm tra kết nối mạng rồi thử lại."
+                        "</div>",
+                        unsafe_allow_html=True
+                    )
+                else:
+                    st.markdown(
+                        f"<div style='display:flex;align-items:center;gap:8px;"
+                        f"color:#888;font-size:0.85rem;margin:6px 2px 2px;'>"
+                        f"<span style='font-size:1.05rem;'>📦</span>"
+                        f"<span><b style='color:#555;'>{len(hh_list)}</b> sản phẩm "
+                        f"— gõ để tìm</span></div>",
+                        unsafe_allow_html=True
+                    )
+                return
 
-        results = _search_hang_hoa(keyword, hh_list, max_results=3)
+            results = _search_hang_hoa(keyword, hh_list, max_results=3)
 
-        if not results:
-            st.caption("Không tìm thấy sản phẩm.")
-            return
+            if not results:
+                st.caption("Không tìm thấy sản phẩm.")
+                return
 
-        for hh in results:
-            _render_search_result_card(hh)
+            for hh in results:
+                _render_search_result_card(hh)
 
 
 def _render_search_result_card(hh: dict):
@@ -359,49 +462,66 @@ def _render_cart_section():
 
     st.markdown(_CART_ROW_CSS, unsafe_allow_html=True)
 
-    with st.container(key="cart-header-zone"):
-        col_h, col_clear = st.columns([3, 2])
-        with col_h:
+    with st.container(key="pos-cart-card"):
+        with st.container(key="cart-header-zone"):
+            col_h, col_clear = st.columns([3, 2])
+            with col_h:
+                st.markdown(
+                    f"<div style='font-size:1rem;font-weight:700;color:#1a1a2e;"
+                    f"padding-top:6px;'>🛒 Giỏ hàng ({len(cart)})</div>",
+                    unsafe_allow_html=True
+                )
+            with col_clear:
+                if cart:
+                    if st.button("🗑  Xóa hết", key="pos_clear_cart_btn",
+                                 use_container_width=True):
+                        _dialog_clear_cart()
+
+        if not cart:
             st.markdown(
-                f"<div style='font-size:1rem;font-weight:700;color:#1a1a2e;"
-                f"padding-top:6px;'>🛒 Giỏ hàng ({len(cart)})</div>",
+                "<div style='background:#fafafa;border:1px dashed #ddd;"
+                "border-radius:10px;padding:24px 16px;text-align:center;"
+                "color:#999;margin:8px 0 4px;'>"
+                "Giỏ hàng trống<br>"
+                "<span style='font-size:0.82rem;'>Tìm và thêm sản phẩm ở trên</span>"
+                "</div>",
                 unsafe_allow_html=True
             )
-        with col_clear:
-            if cart:
-                if st.button("🗑 Xóa hết", key="pos_clear_cart_btn",
-                             use_container_width=True):
-                    _dialog_clear_cart()
+            return
 
-    if not cart:
-        st.markdown(
-            "<div style='background:#fafafa;border:1px dashed #ddd;"
-            "border-radius:10px;padding:24px 16px;text-align:center;"
-            "color:#999;margin:8px 0;'>"
-            "Giỏ hàng trống<br>"
-            "<span style='font-size:0.82rem;'>Tìm và thêm sản phẩm ở trên</span>"
-            "</div>",
-            unsafe_allow_html=True
-        )
-        return
-
-    with st.container(key="cart-rows-zone"):
-        for line in cart:
-            _render_cart_line(line)
+        with st.container(key="cart-rows-zone"):
+            for i, line in enumerate(cart):
+                _render_cart_line(line)
+                if i < len(cart) - 1:
+                    st.markdown(
+                        "<hr style='border:none;border-top:1px solid #f0f0f0;"
+                        "margin:2px 0;'>",
+                        unsafe_allow_html=True,
+                    )
 
 
 def _render_cart_line(line: dict):
     thanh_tien = _calc_thanh_tien(line)
     has_giam = line["giam_gia_dong"] > 0
+    is_dich_vu = line.get("loai_sp") == "Dịch vụ"
+    icon = "🛠" if is_dich_vu else "📦"
 
-    col_info, col_x = st.columns([6, 1])
+    col_thumb, col_info, col_x = st.columns([1, 5, 1])
+
+    with col_thumb:
+        st.markdown(
+            f"<div style='width:44px;height:44px;border-radius:8px;"
+            f"background:#f4f4f6;display:flex;align-items:center;"
+            f"justify-content:center;font-size:1.4rem;'>{icon}</div>",
+            unsafe_allow_html=True
+        )
 
     with col_info:
-        suffix = f" (giảm {fmt_vnd(line['giam_gia_dong'])})" if has_giam else ""
+        suffix = f"  ·  giảm {fmt_vnd(line['giam_gia_dong'])}" if has_giam else ""
         if st.button(
-            f"{line['ten_hang']}\n"
-            f"SL: {line['so_luong']}  ·  Đơn giá: {fmt_vnd(line['don_gia'])}\n"
-            f"Thành tiền: {fmt_vnd(thanh_tien)}{suffix}",
+            f"**{line['ten_hang']}**  —  {fmt_vnd(thanh_tien)}\n\n"
+            f"Mã: {line['ma_hang']}\n\n"
+            f"SL: {line['so_luong']} × {fmt_vnd(line['don_gia'])}{suffix}",
             key=f"pos_edit_{line['ma_hang']}",
             use_container_width=True,
         ):
@@ -422,6 +542,9 @@ def _render_cart_line(line: dict):
 def _render_footer():
     cart = _get_cart()
     tam_tinh = _calc_tam_tinh(cart)
+    n_items = len(cart)
+    giam_gia = 0  # placeholder — giảm giá đơn áp dụng ở màn thanh toán
+    tong_cong = max(0, tam_tinh - giam_gia)
 
     st.markdown(
         """<style>
@@ -429,29 +552,49 @@ def _render_footer():
             position: sticky;
             bottom: 0;
             z-index: 30;
-            background: #ffffff;
+            background: transparent;
             padding: 10px 0 calc(10px + env(safe-area-inset-bottom));
-            border-top: 1px solid #ececec;
-            margin-top: 8px;
+            margin-top: 12px;
+        }
+        [class*="st-key-pos-footer-sticky"] [data-testid="stBaseButton-primary"] {
+            min-height: 56px !important;
+            font-size: 1.02rem !important;
+            letter-spacing: 0.3px !important;
         }
         </style>""",
         unsafe_allow_html=True,
     )
     with st.container(key="pos-footer-sticky"):
-        st.markdown(
-            f"<div style='background:#fff;border:1px solid #ffd5d9;border-radius:10px;"
-            f"padding:12px 14px;margin-bottom:10px;'>"
-            f"<div style='display:flex;justify-content:space-between;align-items:center;'>"
-            f"<span style='font-size:0.92rem;color:#555;'>Tạm tính:</span>"
-            f"<span style='font-size:1.3rem;font-weight:700;color:#e63946;'>"
-            f"{fmt_vnd(tam_tinh)}</span>"
-            f"</div></div>",
-            unsafe_allow_html=True
-        )
+        with st.container(key="pos-footer-card"):
+            st.markdown(
+                f"<div style='display:flex;justify-content:space-between;"
+                f"align-items:center;padding:4px 0;'>"
+                f"<span style='font-size:0.95rem;color:#666;'>"
+                f"Tạm tính ({n_items} sản phẩm)</span>"
+                f"<span style='font-size:1.15rem;font-weight:700;color:#e63946;'>"
+                f"{fmt_vnd(tam_tinh)}</span>"
+                f"</div>"
+                f"<hr style='border:none;border-top:1px dashed #e8e8e8;margin:6px 0;'>"
+                f"<div style='display:flex;justify-content:space-between;"
+                f"align-items:center;padding:4px 0;'>"
+                f"<span style='font-size:0.95rem;color:#666;'>Giảm giá</span>"
+                f"<span style='font-size:1.05rem;color:#888;'>"
+                f"{fmt_vnd(giam_gia)}</span>"
+                f"</div>"
+                f"<hr style='border:none;border-top:1px dashed #e8e8e8;margin:6px 0;'>"
+                f"<div style='display:flex;justify-content:space-between;"
+                f"align-items:center;padding:6px 0 2px;'>"
+                f"<span style='font-size:1rem;font-weight:700;color:#1a1a2e;'>"
+                f"Tổng cộng</span>"
+                f"<span style='font-size:1.4rem;font-weight:800;color:#e63946;'>"
+                f"{fmt_vnd(tong_cong)}</span>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
 
         can_continue = len(cart) > 0
         if st.button(
-            "TIẾP TỤC →",
+            "💳   TIẾP TỤC THANH TOÁN   ›",
             type="primary",
             use_container_width=True,
             disabled=not can_continue,
@@ -459,6 +602,11 @@ def _render_footer():
         ):
             st.session_state["pos_step"] = "thanh_toan"
             st.rerun()
+
+    st.markdown(
+        "<div class='pos-fab-crown'>♛</div>",
+        unsafe_allow_html=True,
+    )
 
 
 # ════════════════════════════════════════════════════════════════
