@@ -29,7 +29,7 @@ from utils.helpers import fmt_vnd
 
 _TZ_VN = ZoneInfo("Asia/Ho_Chi_Minh")
 
-# CSS scoped giữ cột ngang trên mobile
+# CSS scoped giữ cột ngang trên mobile + reskin cards / filter
 _DAT_HANG_CSS = """
 <style>
 .st-key-dh-pttt-zone div[data-testid="stHorizontalBlock"],
@@ -44,6 +44,97 @@ _DAT_HANG_CSS = """
 .st-key-dh-coc-pttt-zone div[data-testid="stHorizontalBlock"] > div,
 .st-key-dh-actions-zone div[data-testid="stHorizontalBlock"] > div {
     min-width: 0 !important;
+}
+
+/* Filter selectbox — red outline kiểu mockup */
+.st-key-dh-filter-zone [data-baseweb="select"] > div {
+    border: 1px solid #ffc6ca !important;
+    border-radius: 12px !important;
+    min-height: 48px !important;
+    background: #fff !important;
+}
+.st-key-dh-filter-zone [data-baseweb="select"] > div:hover {
+    border-color: #e63946 !important;
+}
+
+/* Caption "N phiếu" */
+.dh-count-caption {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #888;
+    font-size: 0.88rem;
+    margin: 8px 2px 4px;
+}
+.dh-count-caption b { color: #555; }
+
+/* Card frame */
+[class*="st-key-dh-card-"] {
+    background: #fff;
+    border: 1px solid #ececec;
+    border-radius: 14px;
+    padding: 12px 12px 10px;
+    margin: 10px 0;
+}
+[class*="st-key-dh-card-cancelled-"] { opacity: 0.78; }
+
+/* Force horizontal columns inside cards */
+[class*="st-key-dh-card-"] div[data-testid="stHorizontalBlock"] {
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    gap: 10px !important;
+    align-items: center !important;
+    width: 100% !important;
+}
+[class*="st-key-dh-card-"] div[data-testid="stHorizontalBlock"] > div {
+    min-width: 0 !important;
+}
+
+/* Click overlay button — flat, full width */
+[class*="st-key-dh-cardbtn-"] button {
+    background: transparent !important;
+    border: none !important;
+    padding: 6px 4px !important;
+    text-align: left !important;
+    min-height: 0 !important;
+    box-shadow: none !important;
+    color: #888 !important;
+    font-size: 0.78rem !important;
+}
+[class*="st-key-dh-cardbtn-"] button p {
+    text-align: left !important;
+    margin: 0 !important;
+}
+[class*="st-key-dh-cardbtn-"] button:hover { background: #fafafa !important; }
+
+/* Empty state */
+.dh-empty {
+    background: #fafafa;
+    border: 1px dashed #ddd;
+    border-radius: 12px;
+    padding: 28px 16px;
+    text-align: center;
+    color: #999;
+    margin: 10px 0;
+}
+
+/* Floating crown FAB (decorative, parity với mockup) */
+.dh-fab-crown {
+    position: fixed;
+    right: 16px;
+    bottom: calc(16px + env(safe-area-inset-bottom));
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    background: #e63946;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 1.5rem;
+    box-shadow: 0 4px 14px rgba(230,57,70,0.35);
+    z-index: 25;
+    pointer-events: none;
 }
 </style>
 """
@@ -132,11 +223,15 @@ def _dialog_chi_tiet(phieu: dict):
 
     # Thông tin hàng
     tong_gia = int(phieu.get("don_gia", 0) or 0) * int(phieu.get("so_luong", 1) or 1)
+    mo_ta_html = ""
+    if phieu.get("mo_ta"):
+        mo_ta_html = (f"<br><span style='color:#666;'>"
+                      f"{phieu['mo_ta']}</span>")
     st.markdown(
         f"<div style='background:#f7f7fa;border:1px solid #e8e8ee;"
         f"border-radius:8px;padding:10px 12px;margin:10px 0;font-size:0.88rem;'>"
         f"<b>{phieu.get('ten_hang', '')}</b>"
-        f"{('<br><span style=\"color:#666;\">' + phieu['mo_ta'] + '</span>') if phieu.get('mo_ta') else ''}"
+        f"{mo_ta_html}"
         f"<br>SL: {phieu.get('so_luong', 1)} · "
         f"Đơn giá: {fmt_vnd(phieu.get('don_gia', 0))} · "
         f"Tổng: <b>{fmt_vnd(tong_gia)}</b>"
@@ -425,6 +520,15 @@ def _dialog_huy(phieu: dict):
 # RENDER — Card 1 phiếu trong danh sách
 # ════════════════════════════════════════════════════════════════
 
+_TT_VISUAL = {
+    # trang_thai → (icon_emoji, circle_bg, circle_fg, pill_label, pill_bg, pill_fg)
+    "Chờ đặt":    ("📋", "#fff8e0", "#856404", "Chờ đặt",    "#fff8e0", "#856404"),
+    "Chờ lấy":    ("📦", "#e8f0ff", "#1a4fba", "Chờ lấy",    "#e8f0ff", "#1a4fba"),
+    "Hoàn thành": ("📋", "#e8f7ee", "#1a7f37", "Hoàn thành", "#e8f7ee", "#1a7f37"),
+    "Đã hủy":     ("✕",  "#ffe5e5", "#c1121f", "Đã hủy",     "#ffe5e5", "#c1121f"),
+}
+
+
 def _render_phieu_card(phieu: dict):
     ma      = phieu.get("ma_phieu", "")
     tt      = phieu.get("trang_thai", "")
@@ -434,19 +538,87 @@ def _render_phieu_card(phieu: dict):
     sl      = int(phieu.get("so_luong", 1) or 1)
     don_gia = int(phieu.get("don_gia", 0) or 0)
     coc     = int(phieu.get("tien_coc", 0) or 0)
+    tong_gia = don_gia * sl
     thoigian = _fmt_dt(phieu.get("created_at", ""))
+    is_cancelled = (tt == "Đã hủy")
 
-    coc_str = f" · Cọc: {fmt_vnd(coc)}" if coc > 0 else ""
-    kh_str  = ten_kh + (f" · {sdt}" if sdt else "")
-
-    btn_label = (
-        f"{ma} [{tt}] — {ten_hg}\n"
-        f"{thoigian}  ·  SL {sl}  ·  {fmt_vnd(don_gia)}{coc_str}\n"
-        f"Khách: {kh_str}"
+    icon, c_bg, c_fg, pill_lbl, p_bg, p_fg = _TT_VISUAL.get(
+        tt, ("📋", "#f0f0f0", "#555", tt, "#f0f0f0", "#555")
     )
 
-    if st.button(btn_label, key=f"dh_card_{ma}", use_container_width=True):
-        _dialog_chi_tiet(phieu)
+    state = "cancelled" if is_cancelled else "active"
+    container_key = f"dh-card-{state}-{ma}"
+    btn_key = f"dh-cardbtn-{ma}"
+
+    pill_inline = (
+        f"<span style='background:{p_bg};color:{p_fg};border-radius:999px;"
+        f"padding:2px 9px;font-size:0.72rem;font-weight:600;"
+        f"white-space:nowrap;'>{pill_lbl}</span>"
+    )
+    pill_under = (
+        f"<div style='background:{p_bg};color:{p_fg};border-radius:999px;"
+        f"padding:2px 10px;font-size:0.72rem;font-weight:600;margin-top:6px;"
+        f"text-align:center;'>{pill_lbl}</div>"
+    )
+    icon_circle = (
+        f"<div style='width:54px;height:54px;border-radius:50%;"
+        f"background:{c_bg};color:{c_fg};display:flex;align-items:center;"
+        f"justify-content:center;font-size:1.6rem;margin:0 auto;'>{icon}</div>"
+    )
+
+    sdt_html = (f"<span style='color:#888;'>📞 {sdt}</span>" if sdt else "")
+    coc_html = (f" · <span>Cọc: <b style='color:#1a1a2e;'>{fmt_vnd(coc)}</b></span>"
+                if coc > 0 else "")
+
+    with st.container(key=container_key):
+        col_icon, col_body, col_price = st.columns([1, 4, 2])
+
+        with col_icon:
+            st.markdown(icon_circle + pill_under, unsafe_allow_html=True)
+
+        with col_body:
+            sep_html = ""
+            if sdt:
+                sep_html = "<span style='color:#ddd;'>|</span>" + sdt_html
+            st.markdown(
+                f"<div style='display:flex;align-items:center;gap:8px;"
+                f"flex-wrap:wrap;'>"
+                f"<span style='font-family:monospace;font-size:0.98rem;"
+                f"font-weight:800;color:#1a1a2e;'>{ma}</span>"
+                f"{pill_inline}"
+                f"</div>"
+                f"<div style='font-size:0.92rem;color:#1a1a2e;margin-top:2px;'>"
+                f"{ten_hg}</div>"
+                f"<div style='font-size:0.78rem;color:#666;margin-top:6px;"
+                f"display:flex;flex-wrap:wrap;gap:4px 6px;'>"
+                f"<span>📅 {thoigian}</span>"
+                f"<span>·</span><span>SL: {sl}</span>"
+                f"{coc_html}"
+                f"</div>"
+                f"<div style='font-size:0.78rem;color:#888;margin-top:4px;"
+                f"display:flex;flex-wrap:wrap;gap:6px;align-items:center;'>"
+                f"<span>👤 {ten_kh}</span>"
+                f"{sep_html}"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+        with col_price:
+            price_color = "#888" if is_cancelled else "#e63946"
+            st.markdown(
+                f"<div style='display:flex;align-items:center;justify-content:flex-end;"
+                f"gap:4px;'>"
+                f"<div style='font-size:1.05rem;font-weight:800;color:{price_color};"
+                f"white-space:nowrap;'>{fmt_vnd(tong_gia) if not is_cancelled else '0đ'}</div>"
+                f"<span style='color:#bbb;font-size:1.1rem;'>›</span>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+        with st.container(key=btn_key):
+            if st.button("Xem chi tiết", key=f"dh_card_{ma}",
+                         use_container_width=True):
+                _dialog_chi_tiet(phieu)
 
 
 # ════════════════════════════════════════════════════════════════
@@ -467,37 +639,43 @@ def _render_tab_danh_sach():
 
     # Filter trạng thái
     filter_options = {
+        "Tất cả": None,
         "Đang mở (Chờ đặt + Chờ lấy)": ["Chờ đặt", "Chờ lấy"],
         "Chờ đặt": ["Chờ đặt"],
         "Chờ lấy": ["Chờ lấy"],
         "Hoàn thành": ["Hoàn thành"],
         "Đã hủy": ["Đã hủy"],
-        "Tất cả": None,
     }
 
-    filter_chon = st.selectbox(
-        "Trạng thái:", list(filter_options.keys()),
-        key="dh_filter_tt", label_visibility="collapsed"
-    )
+    with st.container(key="dh-filter-zone"):
+        filter_chon = st.selectbox(
+            "Trạng thái:", list(filter_options.keys()),
+            key="dh_filter_tt", label_visibility="collapsed"
+        )
 
     tt_filter = filter_options[filter_chon]
 
     with st.spinner("Đang tải..."):
         phieu_list = load_phieu_dat_hang(chi_nhanh, tt_filter)
 
-    st.caption(f"📦 {len(phieu_list)} phiếu")
+    st.markdown(
+        f"<div class='dh-count-caption'>"
+        f"<span style='font-size:1rem;'>📦</span>"
+        f"<span><b>{len(phieu_list)}</b> phiếu</span></div>",
+        unsafe_allow_html=True,
+    )
 
     if not phieu_list:
         st.markdown(
-            "<div style='background:#fafafa;border:1px dashed #ddd;"
-            "border-radius:10px;padding:24px 16px;text-align:center;"
-            "color:#999;margin:8px 0;'>Không có phiếu nào</div>",
-            unsafe_allow_html=True
+            "<div class='dh-empty'>Không có phiếu nào</div>",
+            unsafe_allow_html=True,
         )
-        return
+    else:
+        for phieu in phieu_list:
+            _render_phieu_card(phieu)
 
-    for phieu in phieu_list:
-        _render_phieu_card(phieu)
+    # FAB crown — trang trí kiểu mockup
+    st.markdown("<div class='dh-fab-crown'>♛</div>", unsafe_allow_html=True)
 
 
 # ════════════════════════════════════════════════════════════════
