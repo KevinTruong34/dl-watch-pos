@@ -1,4 +1,4 @@
-"""Auth: login PIN flow + session quản lý."""
+"""Auth: login PIN flow + session quản lý qua localStorage."""
 
 import streamlit as st
 import bcrypt
@@ -7,6 +7,19 @@ from datetime import datetime
 
 from utils.db import supabase, load_nhan_vien_active, load_pin, set_pin
 from utils.helpers import now_vn, end_of_today_vn_iso
+
+# streamlit-local-storage để lưu token vào browser localStorage
+from streamlit_local_storage import LocalStorage
+
+
+# ════════════════════════════════════════════════════════════════
+# LOCALSTORAGE INSTANCE — singleton
+# ════════════════════════════════════════════════════════════════
+
+# Key prefix: "pos_" để không conflict với app khác trên cùng domain
+_LS = LocalStorage()
+_LS_TOKEN_KEY  = "pos_session_token"
+_LS_BRANCH_KEY = "pos_active_branch"
 
 
 # ════════════════════════════════════════════════════════════════
@@ -29,91 +42,126 @@ def verify_pin(pin_input: str, pin_hash: str) -> bool:
 
 
 # ════════════════════════════════════════════════════════════════
-# SESSION TOKEN MANAGEMENT
+# SESSION TOKEN MANAGEMENT (qua RPC mới)
 # ════════════════════════════════════════════════════════════════
 
-def create_session_token(nv_id: int) -> str:
-    """
-    Tạo session token mới, hết hạn 23:59:59 hôm nay (giờ VN).
-    Trả về token string.
-    """
-    token = str(uuid.uuid4())
-    supabase.table("sessions").insert({
-        "token":        token,
-        "nhan_vien_id": nv_id,
-        "expires_at":   end_of_today_vn_iso(),
-    }).execute()
-    return token
-
-
-def delete_session(token: str):
+def create_session_token(nv_id: int, user_agent: str = "") -> str | None:
+    """Tạo session token mới qua RPC. Token expire cuối ngày VN."""
     try:
-        supabase.table("sessions").delete().eq("token", token).execute()
+        res = supabase.rpc("create_session", {
+            "p_nhan_vien_id": nv_id,
+            "p_user_agent":   user_agent or "",
+        }).execute()
+        result = res.data
+        if isinstance(result, list):
+            result = result[0] if result else {}
+        if isinstance(result, dict) and result.get("ok"):
+            return result.get("token")
     except Exception:
         pass
+    return None
 
 
 def restore_session(token: str) -> dict | None:
     """
-    Khôi phục user info từ token.
-    Return user dict nếu token còn hiệu lực, None nếu hết hạn / không tồn tại.
+    Khôi phục user info từ token qua RPC validate_session.
+    Cộng thêm chi_nhanh_list từ bảng nhan_vien_chi_nhanh.
     """
     if not token:
         return None
     try:
-        res = supabase.table("sessions") \
-            .select("nhan_vien_id,expires_at") \
-            .eq("token", token).limit(1).execute()
-        if not res.data:
+        res = supabase.rpc("validate_session", {"p_token": token}).execute()
+        result = res.data
+        if isinstance(result, list):
+            result = result[0] if result else {}
+        if not isinstance(result, dict) or not result.get("ok"):
             return None
 
-        s = res.data[0]
-        # So sánh thời điểm hết hạn với hiện tại (cả 2 đều là tz-aware)
-        expires = datetime.fromisoformat(s["expires_at"])
-        if expires < now_vn():
-            delete_session(token)
+        user = dict(result.get("user") or {})
+        if not user:
             return None
 
-        # Load thông tin user
-        nv_res = supabase.table("nhan_vien") \
-            .select("id,username,ho_ten,role,active") \
-            .eq("id", s["nhan_vien_id"]).limit(1).execute()
-        if not nv_res.data:
-            return None
-        user = nv_res.data[0]
-        if not user.get("active"):
-            return None
+        # Load chi nhánh phân quyền (RPC chưa trả về vì để tách concern)
+        try:
+            cn_res = supabase.table("nhan_vien_chi_nhanh") \
+                .select("chi_nhanh(ten)").eq("nhan_vien_id", user["id"]).execute()
+            user["chi_nhanh_list"] = [
+                x["chi_nhanh"]["ten"] for x in (cn_res.data or [])
+                if x.get("chi_nhanh")
+            ]
+        except Exception:
+            user["chi_nhanh_list"] = []
 
-        # Load chi nhánh phân quyền
-        cn_res = supabase.table("nhan_vien_chi_nhanh") \
-            .select("chi_nhanh(ten)").eq("nhan_vien_id", user["id"]).execute()
-        user["chi_nhanh_list"] = [
-            x["chi_nhanh"]["ten"] for x in (cn_res.data or [])
-            if x.get("chi_nhanh")
-        ]
-        # Lưu thời điểm session hết hạn để hiển thị banner cảnh báo
-        user["session_expires_at"] = s["expires_at"]
+        # Lưu thời điểm session hết hạn cho banner cảnh báo
+        user["session_expires_at"] = result.get("expires_at")
         return user
     except Exception:
         return None
 
 
+def revoke_all_user_sessions(nv_id: int) -> int:
+    """Revoke tất cả session của NV trên mọi thiết bị. Return số session bị revoke."""
+    try:
+        res = supabase.rpc("revoke_user_sessions", {
+            "p_nhan_vien_id": nv_id,
+        }).execute()
+        result = res.data
+        if isinstance(result, list):
+            result = result[0] if result else {}
+        if isinstance(result, dict) and result.get("ok"):
+            return int(result.get("revoked_count", 0))
+    except Exception:
+        pass
+    return 0
+
+
 # ════════════════════════════════════════════════════════════════
-# URL PARAMS — dùng để giữ session khi reload trang
+# LOCALSTORAGE HELPERS
 # ════════════════════════════════════════════════════════════════
 
-def get_token_from_url() -> str | None:
-    return st.query_params.get("token")
+def _ls_get_token() -> str | None:
+    """Đọc token từ localStorage. Return None nếu chưa có hoặc rỗng."""
+    try:
+        val = _LS.getItem(_LS_TOKEN_KEY)
+        if val and isinstance(val, str) and val.strip():
+            return val.strip()
+    except Exception:
+        pass
+    return None
 
 
-def save_token_to_url(token: str):
-    st.query_params["token"] = token
+def _ls_set_token(token: str):
+    """Ghi token vào localStorage."""
+    try:
+        _LS.setItem(_LS_TOKEN_KEY, token, key="ls_set_token")
+    except Exception:
+        pass
 
 
-def clear_url_params():
-    for k in ("token",):
-        if k in st.query_params:
-            del st.query_params[k]
+def _ls_delete_token():
+    """Xóa token khỏi localStorage."""
+    try:
+        _LS.deleteItem(_LS_TOKEN_KEY, key="ls_del_token")
+    except Exception:
+        pass
+
+
+def _ls_get_branch() -> str | None:
+    try:
+        val = _LS.getItem(_LS_BRANCH_KEY)
+        if val and isinstance(val, str) and val.strip():
+            return val.strip()
+    except Exception:
+        pass
+    return None
+
+
+def _save_branch_localstorage(branch: str):
+    """Lưu chi nhánh đã chọn vào localStorage để nhớ cho lần sau."""
+    try:
+        _LS.setItem(_LS_BRANCH_KEY, branch, key="ls_set_branch")
+    except Exception:
+        pass
 
 
 # ════════════════════════════════════════════════════════════════
@@ -145,11 +193,14 @@ def get_accessible_branches() -> list[str]:
 
 
 def do_logout():
-    """Xóa session khỏi DB + clear state."""
-    token = get_token_from_url()
-    if token:
-        delete_session(token)
-    clear_url_params()
+    """
+    Logout: revoke TẤT CẢ session của NV trên mọi thiết bị.
+    Xóa localStorage + clear state.
+    """
+    user = get_user()
+    if user and user.get("id"):
+        revoke_all_user_sessions(user["id"])
+    _ls_delete_token()
     st.session_state.clear()
 
 
@@ -178,7 +229,6 @@ def _display_name_no_prefix(ho_ten: str) -> str:
 # CSS cho numpad — force horizontal layout cả trên mobile
 _NUMPAD_CSS = """
 <style>
-/* Scoped bằng st.container(key=...) để chỉ apply cho numpad */
 .st-key-__ZONE_KEY__ div[data-testid="stHorizontalBlock"] {
     flex-direction: row !important;
     flex-wrap: nowrap !important;
@@ -193,7 +243,6 @@ _NUMPAD_CSS = """
     width: calc((100% - 16px) / 3) !important;
     max-width: calc((100% - 16px) / 3) !important;
 }
-/* Override Streamlit mobile rule that forces columns to stack */
 @media (max-width: 640px) {
     .st-key-__ZONE_KEY__ div[data-testid="stHorizontalBlock"] > div {
         flex: 0 0 calc((100% - 12px) / 3) !important;
@@ -201,7 +250,6 @@ _NUMPAD_CSS = """
         max-width: calc((100% - 12px) / 3) !important;
     }
 }
-/* Style cho numpad buttons */
 .st-key-__ZONE_KEY__ div[data-testid="stButton"] button {
     height: 64px !important;
     font-size: 1.5rem !important;
@@ -210,7 +258,6 @@ _NUMPAD_CSS = """
     width: 100% !important;
     padding: 0 !important;
 }
-/* Mobile - tăng nhẹ kích thước button */
 @media (max-width: 640px) {
     .st-key-__ZONE_KEY__ div[data-testid="stButton"] button {
         height: 50px !important;
@@ -225,20 +272,11 @@ _NUMPAD_CSS = """
 
 
 def _render_numpad_input(key_prefix: str, max_len: int = 4) -> str:
-    """
-    Vẽ ô PIN input native (bàn phím số trên mobile) + numpad button làm backup.
-
-    UX:
-      - Ô input chính: kích hoạt bàn phím số native (inputmode="numeric")
-      - Numpad button bên dưới: backup khi user đóng bàn phím native
-      - Cả 2 cùng cập nhật vào st.session_state[pin_key]
-      - Trả về PIN hiện tại (string)
-    """
+    """Vẽ ô PIN input native + numpad button. Return PIN hiện tại (string)."""
     pin_key = f"{key_prefix}_pin_value"
     if pin_key not in st.session_state:
         st.session_state[pin_key] = ""
 
-    # ── 1. Hiển thị dots ●●○○ (đẹp) ──
     current = st.session_state[pin_key]
     dots = ""
     for i in range(max_len):
@@ -252,13 +290,8 @@ def _render_numpad_input(key_prefix: str, max_len: int = 4) -> str:
         unsafe_allow_html=True
     )
 
-    # ── 2. Input native (mobile keyboard số qua key prefix numkb) ──
-    # Dùng key có suffix counter để reset được khi cần
     rk = st.session_state.get(f"{key_prefix}_input_reset_cnt", 0)
     input_key = f"{key_prefix}_native_input_{rk}"
-
-    # Container key bắt đầu bằng "numkb-" → MutationObserver global trong app.py
-    # sẽ tự apply inputmode="numeric" cho input bên trong
     input_zone_key = f"numkb-{key_prefix}-input-zone"
     st.markdown(
         """<style>
@@ -284,17 +317,14 @@ def _render_numpad_input(key_prefix: str, max_len: int = 4) -> str:
             type="password",
         )
 
-    # Filter typed: chỉ giữ chữ số, max max_len
     typed_clean = "".join(c for c in (typed or "") if c.isdigit())[:max_len]
 
-    # Đồng bộ giá trị: nếu input native khác state hiện tại → cập nhật state
     if typed_clean != current:
         st.session_state[pin_key] = typed_clean
         st.rerun()
 
     current = st.session_state[pin_key]
 
-    # ── 3. Numpad button (backup, dưới input) ──
     zone_key = f"{key_prefix}_numpad_zone"
     st.markdown(_NUMPAD_CSS.replace("__ZONE_KEY__", zone_key), unsafe_allow_html=True)
 
@@ -323,35 +353,24 @@ def _render_numpad_input(key_prefix: str, max_len: int = 4) -> str:
 
 
 def _set_pin_state(key_prefix: str, new_value: str):
-    """
-    Set PIN state + tăng input reset counter để input native re-render với
-    giá trị mới (cần thiết khi numpad button thay đổi state).
-    """
     pin_key = f"{key_prefix}_pin_value"
     st.session_state[pin_key] = new_value
-    # Tăng counter → input native dùng key mới → re-render với placeholder rỗng
     cnt_key = f"{key_prefix}_input_reset_cnt"
     st.session_state[cnt_key] = st.session_state.get(cnt_key, 0) + 1
 
 
 def _reset_numpad(key_prefix: str):
-    """Xóa giá trị PIN + reset input native."""
     pin_key = f"{key_prefix}_pin_value"
     st.session_state[pin_key] = ""
-    # Tăng counter để input native re-render với giá trị rỗng
     cnt_key = f"{key_prefix}_input_reset_cnt"
     st.session_state[cnt_key] = st.session_state.get(cnt_key, 0) + 1
 
 
 # ════════════════════════════════════════════════════════════════
-# VERTICAL CENTERING — Đẩy nội dung xuống giữa màn hình
+# VERTICAL CENTERING
 # ════════════════════════════════════════════════════════════════
 
 def _vertical_spacer(min_vh: int = 12):
-    """
-    Tạo khoảng trống ở đầu để đẩy nội dung xuống giữa.
-    Dùng vh (viewport height) để responsive theo chiều cao màn hình.
-    """
     st.markdown(
         f"<div style='min-height:{min_vh}vh;'></div>",
         unsafe_allow_html=True
@@ -363,23 +382,16 @@ def _vertical_spacer(min_vh: int = 12):
 # ════════════════════════════════════════════════════════════════
 
 def _show_step_choose_nv():
-    """Bước 1: Chọn nhân viên — canh giữa theo chiều dọc."""
     nv_list = load_nhan_vien_active()
     if not nv_list:
         st.info("Chưa có nhân viên nào trong hệ thống.")
         return
 
-    # Spacer động theo số lượng NV để luôn cân giữa:
-    #   ít NV → spacer lớn, nhiều NV → spacer nhỏ
     n = len(nv_list)
-    if n <= 3:
-        spacer_vh = 20
-    elif n <= 5:
-        spacer_vh = 12
-    elif n <= 8:
-        spacer_vh = 6
-    else:
-        spacer_vh = 2
+    if n <= 3:    spacer_vh = 20
+    elif n <= 5:  spacer_vh = 12
+    elif n <= 8:  spacer_vh = 6
+    else:         spacer_vh = 2
 
     _vertical_spacer(spacer_vh)
 
@@ -391,7 +403,6 @@ def _show_step_choose_nv():
         unsafe_allow_html=True
     )
 
-    # Style cho avatar card
     st.markdown("""
     <style>
     .nv-card {
@@ -426,8 +437,6 @@ def _show_step_choose_nv():
 
 
 def _show_step_pin(nv: dict, has_pin: bool):
-    """Bước 2: Nhập PIN (set lần đầu hoặc xác thực)."""
-    # Header với nút back
     col_back, col_title = st.columns([1, 4])
     with col_back:
         if st.button("←", key="login_back_to_nv", use_container_width=True):
@@ -445,10 +454,7 @@ def _show_step_pin(nv: dict, has_pin: bool):
         unsafe_allow_html=True
     )
 
-    # Phân biệt: chưa có PIN → set 2 bước (nhập + xác nhận)
-    #            có PIN → nhập 1 lần để xác thực
     if not has_pin:
-        # Bước 2A: Set PIN lần đầu
         step = st.session_state.get("_setting_pin_step", 1)
 
         if step == 1:
@@ -466,22 +472,17 @@ def _show_step_pin(nv: dict, has_pin: bool):
 
         pin = _render_numpad_input("login", max_len=4)
 
-        # Khi đủ 4 số → tự xử lý
         if len(pin) == 4:
             if step == 1:
-                # Lưu PIN lần 1, chuyển sang bước 2
                 st.session_state["_setting_pin_first"] = pin
                 st.session_state["_setting_pin_step"] = 2
                 _reset_numpad("login")
                 st.rerun()
             else:
-                # Bước 2: so sánh
                 first_pin = st.session_state.get("_setting_pin_first", "")
                 if pin == first_pin:
-                    # Khớp → lưu vào DB
                     pin_h = hash_pin(pin)
                     if set_pin(nv["id"], pin_h):
-                        # Login luôn
                         _finalize_login(nv)
                     else:
                         st.error("Lỗi lưu PIN, thử lại.")
@@ -495,7 +496,6 @@ def _show_step_pin(nv: dict, has_pin: bool):
                     time.sleep(1)
                     st.rerun()
     else:
-        # Bước 2B: Nhập PIN xác thực
         st.markdown(
             "<div style='text-align:center;font-size:0.92rem;color:#666;"
             "margin-bottom:10px;'>Nhập mã PIN:</div>",
@@ -523,27 +523,21 @@ def _show_step_pin(nv: dict, has_pin: bool):
 
 
 def _show_step_choose_branch():
-    """Bước 3: Chọn chi nhánh — canh giữa theo chiều dọc."""
-    user = get_user()
     branches = get_accessible_branches()
 
-    # Spacer dynamic theo số CN (thường ít — chỉ 1-3 CN)
     n = len(branches)
-    if n <= 2:
-        spacer_vh = 22
-    elif n == 3:
-        spacer_vh = 18
-    else:
-        spacer_vh = 12
+    if n <= 2:    spacer_vh = 22
+    elif n == 3:  spacer_vh = 18
+    else:         spacer_vh = 12
 
     _vertical_spacer(spacer_vh)
 
     st.markdown(
-        f"<div style='text-align:center;padding:0 0 16px;'>"
-        f"<div style='font-size:1.05rem;color:#1a7f37;'>✓ Đăng nhập thành công!</div>"
-        f"<div style='font-size:0.92rem;color:#666;margin-top:8px;'>"
-        f"Chọn chi nhánh:</div>"
-        f"</div>",
+        "<div style='text-align:center;padding:0 0 16px;'>"
+        "<div style='font-size:1.05rem;color:#1a7f37;'>✓ Đăng nhập thành công!</div>"
+        "<div style='font-size:0.92rem;color:#666;margin-top:8px;'>"
+        "Chọn chi nhánh:</div>"
+        "</div>",
         unsafe_allow_html=True
     )
 
@@ -566,7 +560,6 @@ def _show_step_choose_branch():
                 use_container_width=True,
             ):
                 st.session_state["active_chi_nhanh"] = cn
-                # Lưu vào localStorage qua components.html
                 _save_branch_localstorage(cn)
                 st.rerun()
 
@@ -576,56 +569,26 @@ def _show_step_choose_branch():
         st.rerun()
 
 
-def _save_branch_localstorage(branch: str):
-    """Lưu chi nhánh đã chọn vào localStorage để nhớ cho lần sau."""
-    import streamlit.components.v1 as components
-    components.html(
-        f"""<script>
-        try {{
-            localStorage.setItem('pos_active_branch', {repr(branch)});
-        }} catch(e) {{}}
-        </script>""",
-        height=0
-    )
-
-
-def _read_branch_localstorage_js() -> None:
-    """
-    Inject JS đọc localStorage và set vào URL params nếu có.
-    Chạy 1 lần khi user mới login mà chưa có active_chi_nhanh.
-    """
-    import streamlit.components.v1 as components
-    components.html(
-        """<script>
-        try {
-            var b = localStorage.getItem('pos_active_branch');
-            if (b) {
-                var url = new URL(window.parent.location.href);
-                if (!url.searchParams.get('branch')) {
-                    url.searchParams.set('branch', b);
-                    window.parent.location.replace(url.toString());
-                }
-            }
-        } catch(e) {}
-        </script>""",
-        height=0
-    )
-
-
 def _finalize_login(nv: dict):
-    """Tạo session token, set state, redirect."""
-    token = create_session_token(nv["id"])
+    """Tạo session token, lưu vào localStorage, set state."""
+    # User agent ngắn gọn (Streamlit không expose UA dễ — dùng placeholder)
+    user_agent = "POS App"
 
-    # Load đầy đủ user info (có chi_nhanh_list)
+    token = create_session_token(nv["id"], user_agent)
+    if not token:
+        st.error("Lỗi tạo phiên đăng nhập. Thử lại.")
+        return
+
     user = restore_session(token)
     if not user:
         st.error("Lỗi khôi phục session. Thử đăng nhập lại.")
         return
 
     st.session_state["user"] = user
-    save_token_to_url(token)
+    _ls_set_token(token)
+    # Lưu token vào session_state để do_logout() biết hủy session nào nếu cần
+    st.session_state["_session_token"] = token
 
-    # Clean up state
     st.session_state.pop("_pending_nv", None)
     st.session_state.pop("_setting_pin_step", None)
     st.session_state.pop("_setting_pin_first", None)
@@ -635,25 +598,27 @@ def _finalize_login(nv: dict):
 
 
 # ════════════════════════════════════════════════════════════════
-# AUTH GATE — gọi từ app.py
+# AUTH GATE
 # ════════════════════════════════════════════════════════════════
 
 def run_auth_gate():
     """
     Cổng kiểm tra auth. Gọi đầu app.py.
-    Nếu chưa login: hiện flow login.
-    Nếu chưa chọn chi nhánh: hiện flow chọn CN.
-    Nếu đã login + có CN: pass, app.py tiếp tục render.
+    - Restore từ localStorage token nếu có
+    - Nếu chưa login: hiện flow login
+    - Nếu chưa chọn CN: hiện flow chọn CN
     """
-    # Restore session từ token URL nếu có
+    # ── Restore session từ localStorage ──
     if "user" not in st.session_state:
-        token = get_token_from_url()
+        token = _ls_get_token()
         if token:
             user = restore_session(token)
             if user:
                 st.session_state["user"] = user
+                st.session_state["_session_token"] = token
             else:
-                clear_url_params()
+                # Token invalid → xóa khỏi localStorage
+                _ls_delete_token()
 
     # Chưa login
     if "user" not in st.session_state:
@@ -667,18 +632,16 @@ def run_auth_gate():
 
     # Đã login, kiểm tra chi nhánh
     if "active_chi_nhanh" not in st.session_state:
-        # Thử đọc từ URL (set bởi localStorage)
-        url_branch = st.query_params.get("branch")
         accessible = get_accessible_branches()
+        # Thử đọc CN từ localStorage
+        ls_branch = _ls_get_branch()
 
-        if url_branch and url_branch in accessible:
-            st.session_state["active_chi_nhanh"] = url_branch
+        if ls_branch and ls_branch in accessible:
+            st.session_state["active_chi_nhanh"] = ls_branch
         elif len(accessible) == 1:
-            # Chỉ thuộc 1 CN → tự chọn
             st.session_state["active_chi_nhanh"] = accessible[0]
             _save_branch_localstorage(accessible[0])
         else:
-            # Hiện màn chọn CN
             _show_step_choose_branch()
             st.stop()
 
@@ -688,10 +651,7 @@ def run_auth_gate():
 # ════════════════════════════════════════════════════════════════
 
 def render_session_warning_banner():
-    """
-    Render banner cảnh báo khi session sắp hết hạn (≤30 phút).
-    Gọi sau header trong app.py.
-    """
+    """Cảnh báo khi session sắp hết hạn (≤30 phút)."""
     user = get_user()
     if not user:
         return
@@ -701,21 +661,18 @@ def render_session_warning_banner():
         return
 
     try:
-        expires = datetime.fromisoformat(expires_at_str)
+        expires = datetime.fromisoformat(expires_at_str.replace("Z", "+00:00"))
         now = now_vn()
         remaining = (expires - now).total_seconds()
     except Exception:
         return
 
-    # Còn ≤30 phút (1800s) → hiện banner
     if remaining <= 0:
-        return  # Đã hết hạn — sẽ bị logout ở lượt next
+        return
     if remaining > 1800:
-        return  # Còn nhiều, không cần cảnh báo
+        return
 
     minutes = int(remaining // 60)
-    # Convert sang VN timezone trước khi format — Supabase lưu timestamptz ở UTC,
-    # nếu strftime trực tiếp sẽ ra giờ UTC (vd 16:59 thay vì 23:59 VN)
     from zoneinfo import ZoneInfo
     expires_hhmm = expires.astimezone(ZoneInfo("Asia/Ho_Chi_Minh")).strftime("%H:%M")
 
