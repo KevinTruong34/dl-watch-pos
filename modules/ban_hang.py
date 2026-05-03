@@ -403,6 +403,7 @@ def _render_search_section():
                         f"color:#888;font-size:0.85rem;margin:6px 2px 2px;'>"
                         f"<span style='font-size:1.05rem;'>📦</span>"
                         f"<span><b style='color:#555;'>{len(hh_list)}</b> sản phẩm "
+                        f"</span></div>",
                         unsafe_allow_html=True
                     )
                 return
