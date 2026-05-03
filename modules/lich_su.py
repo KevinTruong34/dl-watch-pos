@@ -687,12 +687,12 @@ def module_lich_su():
         f"color:#999;margin:8px 0;'>Chưa có giao dịch {range_label}</div>",
         unsafe_allow_html=True
     )
-    else:
-        for item in all_items:
-            if item["_type"] == "hd":
-                _render_invoice_card(item)
-            else:
-                _render_pdt_card(item)
+else:
+    for item in all_items:
+        if item["_type"] == "hd":
+            _render_invoice_card(item)
+        else:
+            _render_pdt_card(item)
 
     # ── Nút xem cũ hơn / quay về hôm nay ──
     st.markdown(
