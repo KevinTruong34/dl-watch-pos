@@ -679,20 +679,20 @@ def module_lich_su():
 
     # Render list
     if not all_items:
-    n_days = days_back + 1
-    range_label = "hôm nay" if days_back == 0 else f"{n_days} ngày gần nhất"
-    st.markdown(
-        f"<div style='background:#fafafa;border:1px dashed #ddd;"
-        f"border-radius:10px;padding:24px 16px;text-align:center;"
-        f"color:#999;margin:8px 0;'>Chưa có giao dịch {range_label}</div>",
-        unsafe_allow_html=True
-    )
-else:
-    for item in all_items:
-        if item["_type"] == "hd":
-            _render_invoice_card(item)
-        else:
-            _render_pdt_card(item)
+        n_days = days_back + 1
+        range_label = "hôm nay" if days_back == 0 else f"{n_days} ngày gần nhất"
+        st.markdown(
+            f"<div style='background:#fafafa;border:1px dashed #ddd;"
+            f"border-radius:10px;padding:24px 16px;text-align:center;"
+            f"color:#999;margin:8px 0;'>Chưa có giao dịch {range_label}</div>",
+            unsafe_allow_html=True
+        )
+    else:
+        for item in all_items:
+            if item["_type"] == "hd":
+                _render_invoice_card(item)
+            else:
+                _render_pdt_card(item)
 
     # ── Nút xem cũ hơn / quay về hôm nay ──
     st.markdown(
