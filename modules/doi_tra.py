@@ -761,10 +761,16 @@ def _render_pdt_items_html(items: list[dict]):
         sl = ct.get("so_luong", 0)
         dg = ct.get("don_gia", 0)
         tt = ct.get("thanh_tien", 0)
+        ma_hang = (ct.get("ma_hang", "") or "").strip()
+        ma_hang_html = (
+            f"<span style='font-size:0.78rem;color:#666;font-weight:400;'>"
+            f"&nbsp;•&nbsp;{ma_hang}</span>"
+            if ma_hang else ""
+        )
         html += (
             f"<div style='padding:4px 0;border-bottom:1px dashed #e8e8e8;'>"
             f"<div style='font-size:0.85rem;color:#1a1a2e;font-weight:500;'>"
-            f"{ct.get('ten_hang','')}</div>"
+            f"{ct.get('ten_hang','')}{ma_hang_html}</div>"
             f"<div style='display:flex;justify-content:space-between;"
             f"font-size:0.78rem;color:#666;margin-top:2px;'>"
             f"<span>SL {sl} × {fmt_vnd(dg)}</span>"
