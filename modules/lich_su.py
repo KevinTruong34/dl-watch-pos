@@ -551,7 +551,7 @@ def _render_pdt_card(pdt: dict):
                 f"align-items:flex-start;gap:8px;'>"
                 f"<div style='font-family:monospace;font-size:1rem;"
                 f"font-weight:800;color:#1a1a2e;'>↔ {ma_pdt}"
-                f"<span style='font-size:0.465em;color:#888;font-weight:600;'>"
+                f"<span style='font-size:0.535em;color:#888;font-weight:600;'>"
                 f" từ {ma_hd_goc}</span>{cancel_tag}</div>"
                 f"<div style='font-size:1.05rem;font-weight:800;color:{tien_color};"
                 f"white-space:nowrap;'>{tien_text}</div>"
