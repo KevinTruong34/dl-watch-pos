@@ -20,7 +20,18 @@ _COOKIE_BRANCH_KEY = "pos_active_branch"
 
 
 @st.cache_resource
-def _get_cookies():
+def _get_cookies() -> "stx.CookieManager":
+    """
+    Khởi tạo CookieManager singleton qua @st.cache_resource.
+
+    Pattern này theo docs chính thức của extra-streamlit-components.
+    Lý do: CookieManager() trigger rerun mỗi lần init → nếu cache trong
+    st.session_state thì mất rerun → JS frontend không gửi cookies về Python.
+
+    Về security: instance Python KHÔNG giữ state user-specific. Mỗi lần
+    .get(name) được gọi, component query JS frontend của browser hiện tại
+    → mỗi browser trả cookie của riêng nó → không leak giữa users.
+    """
     return stx.CookieManager()
 
 
