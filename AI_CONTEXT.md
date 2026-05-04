@@ -1,15 +1,15 @@
 # AI_CONTEXT.md — DL Watch POS App
 
-**Cập nhật:** 01/05/2026  
-**Mục đích:** Bàn giao context đầy đủ cho Claude session mới khi làm Bước 7 (Đổi/Trả) và Bước 8 (Đặt hàng theo yêu cầu).
+**Cập nhật:** 04/05/2026
+**Mục đích:** Bàn giao context đầy đủ cho Claude session mới. POS app đã qua **Bước 1 → Bước 8 + LINE notification + URL session token** — đang ở giai đoạn polish và làm thêm tính năng phụ.
 
 ---
 
 ## QUAN TRỌNG — ĐỌC ĐẦU TIÊN
 
-Đây là dự án **POS app riêng** cho cửa hàng đồng hồ DL Watch, **chia sẻ database** với app quản lý cũ. Đã hoàn thành và deploy production qua **Bước 1 → Bước 6**.
+Đây là dự án **POS app riêng** cho cửa hàng đồng hồ DL Watch, **chia sẻ database** với app quản lý cũ. Đã hoàn thành và deploy production qua **Bước 1 → Bước 8**.
 
-User dùng tiếng Việt. Tuân theo `CLAUDE.md` (đã upload lên project knowledge): think before coding, simplicity first, surgical changes, goal-driven execution. **Luôn hỏi clarifying questions trước khi implement, không pick interpretation silently.**
+User dùng tiếng Việt, xưng "mình/bạn". Tuân theo `CLAUDE.md` (đã upload lên project knowledge): think before coding, simplicity first, surgical changes, goal-driven execution. **Luôn hỏi clarifying questions trước khi implement, không pick interpretation silently.**
 
 ---
 
@@ -19,15 +19,15 @@ User dùng tiếng Việt. Tuân theo `CLAUDE.md` (đã upload lên project know
 
 | App | Path | Mục đích | Trạng thái |
 |-----|------|----------|------------|
-| **App quản lý cũ** (legacy) | `web_app/` | Quản trị: hàng hóa, sửa chữa, kiểm kê, báo cáo | Production, đang chạy |
-| **POS app mới** | `pos_app/` | Bán hàng tại quầy trên mobile | Production, đang chạy |
+| **App quản lý cũ** (legacy) | `web_app/` | Quản trị: hàng hóa, sửa chữa, kiểm kê, báo cáo | Production |
+| **POS app mới** | `pos_app/` | Bán hàng tại quầy trên mobile | Production |
 
 Cả 2 deploy lên **Streamlit Cloud** từ 2 GitHub repo riêng. Cùng dùng **Supabase project** (cùng `SUPABASE_URL` + `SUPABASE_KEY`).
 
 ### Stack
 
 - **Frontend:** Streamlit (Python) — POS mobile-first max-width 480px, app cũ desktop max-width 1350px
-- **Backend:** Supabase PostgreSQL + RPC functions
+- **Backend:** Supabase PostgreSQL + RPC functions + **Edge Function (Deno/TypeScript)** cho LINE
 - **Deploy:** Streamlit Cloud (private repos, GitHub-linked)
 - **3 chi nhánh:** `100 Lê Quý Đôn` · `Coop Vũng Tàu` · `GO BÀ RỊA`
 
@@ -35,9 +35,9 @@ Cả 2 deploy lên **Streamlit Cloud** từ 2 GitHub repo riêng. Cùng dùng **
 
 | Role | Quyền POS | Quyền app cũ |
 |------|-----------|--------------|
-| `admin` | Tất cả + hủy HĐ | Tất cả modules |
-| `ke_toan` | Bán hàng + lịch sử | Báo cáo + xem (không hủy/xóa) |
-| `nhan_vien` | Bán hàng + xem lịch sử CN | Hạn chế: hóa đơn, hàng hóa, sửa chữa, chuyển hàng |
+| `admin` | Tất cả + hủy HĐ + hủy phiếu đổi/trả + hủy phiếu đặt | Tất cả modules |
+| `ke_toan` | Bán hàng + lịch sử + đổi/trả + đặt hàng | Báo cáo + xem (không hủy/xóa) |
+| `nhan_vien` | Bán hàng + xem lịch sử CN + đổi/trả (≤7 ngày) + đặt hàng | Hạn chế: hóa đơn, hàng hóa, sửa chữa, chuyển hàng |
 
 ---
 
@@ -48,22 +48,26 @@ Cả 2 deploy lên **Streamlit Cloud** từ 2 GitHub repo riêng. Cùng dùng **
 [✓] Bước 2A: Bán hàng (search + giỏ + dialog sửa dòng)
 [✓] Bước 3: Thanh toán + RPC tạo hóa đơn atomic
 [✓] Bước 4: Lịch sử hóa đơn + hủy (admin only, hoàn tồn kho)
-[✓] Bước 5: Polish + deploy guide (banner cảnh báo session, validation)
+[✓] Bước 5: Polish + deploy guide
 [✓] Bước 6: Liên kết app cũ với HĐ POS (adapter load_hoa_don_unified)
+[✓] Bước 7: Đổi/Trả hàng đã bán (AHDD prefix, RPC atomic)
+[✓] Bước 7B: Adapter app cũ phản ánh phiếu đổi/trả (AHDD merge)
+[✓] Bước 8: Đặt hàng theo yêu cầu (4 trạng thái + cọc + free-text)
+[✓] LINE Notification: Edge Function + Database Webhook định tuyến CN
+[✓] Session token: URL params (?t=xxx) — sau khi cookie thất bại 3 vòng
 
-[✓] Bước 7: Đổi/Trả hàng đã bán       — đã code, chờ user test
-[ ] Bước 8: Đặt hàng theo yêu cầu     ← KẾ TIẾP — user đã có câu trả lời nghiệp vụ
-[ ] Bước 7B: Update adapter app cũ — phản ánh phiếu đổi/trả vào báo cáo (sau khi 7 stable)
-
-[Roadmap kỹ thuật - làm khi có thời gian]
+[Pending — kỹ thuật phụ]
+[ ] Phương án B (nhớ NV qua localStorage thuần) — UX skip bước chọn tài khoản
+[ ] Casso/SePay webhook xác nhận chuyển khoản (B9-1..B9-5 đã chốt nghiệp vụ, paused)
 [ ] Local Daemon + in K80 (Xprinter XP-365B static IP, port 9100)
-[ ] Webhook xác nhận chuyển khoản (Casso/SePay)
-[ ] localStorage session token (Add to Home Screen)
 [ ] Quản lý số dư khách hàng (tiền thừa)
 [ ] Quét mã vạch (Phase 2B)
+[ ] Logs thao tác POS app vào action_logs (web app)
+[ ] LINE notification mở rộng (đổi/trả + phiếu đặt hoàn thành)
+[ ] Cache/spinner perf — tech debt
 ```
 
-User sẽ **bỏ KiotViet trong <1 tuần** — adapter ở Bước 6 đã handle sẵn, không cần sửa gì khi đó.
+User đã **bỏ KiotViet** — adapter ở Bước 6 handle sẵn.
 
 ---
 
@@ -71,63 +75,38 @@ User sẽ **bỏ KiotViet trong <1 tuần** — adapter ở Bước 6 đã handl
 
 ```
 pos_app/
-├── app.py                          # Entry, header, routing tab, MutationObserver inject inputmode
+├── app.py                              # Entry, header, routing tab, MutationObserver inject inputmode
 ├── requirements.txt
 ├── README.md
 ├── .streamlit/
 │   ├── config.toml
 │   └── secrets.toml.example
 ├── docs/
-│   ├── SETUP.md                    # Setup Supabase + Streamlit Cloud + secrets
-│   └── ADMIN_GUIDE.md              # Hướng dẫn admin: thêm NV, reset PIN, hủy HĐ
+│   ├── SETUP.md
+│   └── ADMIN_GUIDE.md
 ├── sql/
-│   ├── full_setup.sql              # Schema cuối + RPC (cho fresh DB)
-│   ├── pos_setup.sql               # Patch ban đầu (đã chạy)
-│   ├── pos_patch_01_tien_thua.sql  # Đã chạy
-│   ├── pos_patch_02_dich_vu.sql    # Đã chạy
-│   └── pos_patch_03_doi_tra.sql    # Bước 7 — chờ user áp vào DB
+│   ├── full_setup.sql                  # Schema cuối + RPC
+│   ├── pos_setup.sql
+│   ├── pos_patch_01_tien_thua.sql
+│   ├── pos_patch_02_dich_vu.sql
+│   ├── pos_patch_03_doi_tra.sql        # Bước 7
+│   ├── pos_patch_04_huy_hd_check.sql   # Validate hủy HĐ khi đã có phiếu đổi/trả
+│   ├── pos_patch_05_timezone_fix.sql   # Fix end-of-day VN trong RPC
+│   ├── pos_patch_06_dat_hang.sql       # Bước 8
+│   └── pos_patch_07_session.sql        # Session token + RPC validate
 ├── utils/
 │   ├── __init__.py
-│   ├── config.py                   # APP_NAME, ALL_BRANCHES, CN_SHORT, CN_INFO
-│   ├── db.py                       # supabase client + load + RPC + validators
-│   ├── auth.py                     # PIN flow, session, branch, render_session_warning_banner
-│   └── helpers.py                  # now_vn, today_vn, fmt_vnd, end_of_today_vn_iso
+│   ├── config.py                       # APP_NAME, ALL_BRANCHES, CN_SHORT, CN_INFO
+│   ├── db.py                           # supabase client + load + RPC + validators
+│   ├── auth.py                         # PIN flow, session URL token, banner
+│   └── helpers.py                      # now_vn, today_vn, fmt_vnd, end_of_today_vn_iso
 └── modules/
     ├── __init__.py
-    ├── ban_hang.py                 # Màn 1 (search+giỏ) → Màn 2 (thanh toán) → Màn 3 (success)
-    ├── lich_su.py                  # List HĐ POS + modal chi tiết + flow hủy + nút "↔ Đổi/Trả"
-    └── doi_tra.py                  # Bước 7: màn Đổi/Trả + modal chi tiết phiếu AHDD
+    ├── ban_hang.py                     # Màn 1 → 2 → 3 + hỗ trợ tạo HĐ từ phiếu đặt
+    ├── lich_su.py                      # List HĐ + AHDD merge + modal chi tiết + hủy
+    ├── doi_tra.py                      # Bước 7: đổi/trả full-screen + dialog AHDD
+    └── dat_hang.py                     # Bước 8: 4 trạng thái phiếu đặt
 ```
-
-### POS — luồng chính
-
-1. **Login:** Avatar NV → PIN numpad (có input native `inputmode=numeric`) → chọn CN
-2. **Bán hàng:**
-   - Search hàng (max 3 results, ưu tiên còn tồn, Dịch vụ luôn available)
-   - Bấm vào kết quả → thêm giỏ (SL=1)
-   - Bấm vào card giỏ → dialog sửa SL/đơn giá/giảm giá (với numpad số)
-   - Bấm "Tiếp tục" → màn thanh toán
-3. **Thanh toán:**
-   - Section Khách: tick "Khách lẻ" hoặc nhập SĐT (lookup auto, khách mới yêu cầu nhập tên)
-   - Tóm tắt giỏ
-   - Giảm giá đơn (tiền/%)
-   - PTTT: 3 nút radio đơn giản hoặc tick "Chia nhiều" → 3 ô input
-   - Card "Khách cần trả" lớn đỏ
-   - Validation: phải tick Khách lẻ HOẶC nhập SĐT, phải đủ tiền
-   - Bấm "XÁC NHẬN" → call RPC atomic → màn success
-4. **Success:**
-   - ✓ to + mã HĐ AHD000001
-   - Tóm tắt + tiền thừa (nếu có)
-   - Nút "In hóa đơn" (placeholder, chờ Local Daemon)
-   - Nút "Hóa đơn mới" → reset
-5. **Lịch sử HĐ:**
-   - Mặc định HĐ hôm nay của CN đang chọn
-   - Tất cả NV thấy mọi HĐ trong CN (không filter theo người bán)
-   - Search + filter
-   - Nút "Xem cũ hơn (+1 ngày)"
-   - Modal chi tiết: thông tin đầy đủ + nút Hủy (admin only)
-   - Hủy: confirm "Hàng sẽ hoàn vào tồn kho" → RPC → toast → reload
-   - HĐ đã hủy hiện xám với badge "[ĐÃ HỦY]"
 
 ---
 
@@ -137,16 +116,16 @@ pos_app/
 
 | Table | Mô tả |
 |-------|-------|
-| `nhan_vien` | Nhân viên: id, username, ho_ten, role, active |
-| `nhan_vien_chi_nhanh` | Phân quyền CN cho NV |
-| `chi_nhanh` | Danh sách 3 CN |
-| `hang_hoa` | Master sản phẩm. **Cột `loai_sp`** = "Hàng hóa" hoặc "Dịch vụ" — POS dùng để skip stock check cho dịch vụ |
+| `nhan_vien` | id, username, ho_ten, role, active |
+| `nhan_vien_chi_nhanh` | Phân quyền CN |
+| `chi_nhanh` | 3 CN |
+| `hang_hoa` | Master sản phẩm. Cột `loai_sp` ("Hàng hóa"/"Dịch vụ") + `active` |
 | `the_kho` | Tồn kho theo CN. Cột `Mã hàng`, `Chi nhánh`, `Tồn cuối kì` |
-| `khach_hang` | Khách hàng. Unique key: `sdt`. `tong_ban` = tổng mua KiotViet (POS không sửa cột này) |
-| `sessions` | Session token đăng nhập (cả 2 app dùng chung) |
-| `hoa_don` | HĐ KiotViet legacy (denormalized, mỗi item 1 dòng) |
+| `khach_hang` | Unique key `sdt`. `tong_ban` cộng dồn KiotViet + POS + AHDD chenh_lech |
+| `sessions` | Session token (đã mở rộng — xem Session Token Architecture) |
+| `hoa_don` | HĐ KiotViet legacy (denormalized) |
 | `phieu_sua_chua` / `_chi_tiet` | Phiếu sửa chữa |
-| `phieu_chuyen_kho`, `phieu_nhap_hang`, `phieu_kiem_ke`, etc. | Các phiếu khác của app cũ |
+| `phieu_chuyen_kho`, `phieu_nhap_hang`, `phieu_kiem_ke`, ... | App cũ |
 
 ### Table riêng của POS
 
@@ -158,30 +137,31 @@ pin_code (
     updated_at    timestamptz
 )
 
--- hoa_don_pos: header HĐ POS (1 dòng/HĐ — KHÁC KiotViet denormalized)
+-- hoa_don_pos: header HĐ POS (1 dòng/HĐ)
 hoa_don_pos (
     ma_hd            text PRIMARY KEY,         -- AHD000001
     chi_nhanh        text,
-    ma_kh            text,                      -- nullable (Khách lẻ)
+    ma_kh            text,
     ten_khach        text,
     sdt_khach        text,
-    tong_tien_hang   integer,                   -- chưa giảm giá đơn
+    tong_tien_hang   integer,
     giam_gia_don     integer,
-    khach_can_tra    integer,                   -- cuối cùng
+    khach_can_tra    integer,
     tien_mat         integer,
     chuyen_khoan     integer,
     the              integer,
-    tien_thua        integer,                   -- khách trả dư
-    trang_thai       text,                      -- "Hoàn thành" | "Đã hủy"
-    nguoi_ban        text,                      -- snapshot tên NV
+    tien_thua        integer,
+    tien_coc_da_thu  integer,                  -- BƯỚC 8: cọc đã thu từ phiếu đặt
+    trang_thai       text,                     -- "Hoàn thành" | "Đã hủy"
+    nguoi_ban        text,
     nguoi_ban_id     bigint,
     ghi_chu          text,
     created_at       timestamptz,
-    cancelled_by     text,                      -- ai hủy
-    cancelled_at     timestamptz                -- lúc nào
+    cancelled_by     text,
+    cancelled_at     timestamptz,
+    ma_pdh           text                      -- BƯỚC 8: link tới phieu_dat_hang nếu có
 )
 
--- hoa_don_pos_ct: chi tiết items
 hoa_don_pos_ct (
     id              bigserial PRIMARY KEY,
     ma_hd           text REFERENCES hoa_don_pos(ma_hd) ON DELETE CASCADE,
@@ -189,48 +169,24 @@ hoa_don_pos_ct (
     ten_hang        text,
     so_luong        integer,
     don_gia         integer,
-    giam_gia_dong   integer,                   -- giảm giá theo dòng
+    giam_gia_dong   integer,
     thanh_tien      integer
 )
 
--- ahd_seq: sequence cho mã AHD
-CREATE SEQUENCE ahd_seq START 1;
-```
-
-### RPC functions của POS
-
-**1. `tao_hoa_don_pos(payload jsonb) → jsonb`** — atomic create
-- Input: chi_nhanh, ma_kh (nullable), ten_khach, sdt_khach, giam_gia_don, tien_mat, chuyen_khoan, the, nguoi_ban, nguoi_ban_id, items[]
-- Logic: check tồn (chỉ Hàng hóa) → check tổng PTTT đủ → trừ tồn (chỉ Hàng hóa) → insert header + chi tiết
-- Output: `{ok: true, ma_hd, tien_thua}` hoặc `{ok: false, error}`
-- Tien_thua = (tien_mat + chuyen_khoan + the) - khach_can_tra (≥ 0)
-
-**2. `huy_hoa_don_pos(p_ma_hd text, p_cancelled_by text) → jsonb`** — atomic cancel
-- Cộng tồn lại (chỉ Hàng hóa) → set trang_thai="Đã hủy" + cancelled_by + cancelled_at
-- Không reversible
-
-**3. `get_next_ahd_num() → bigint`** — sequence helper
-
-### RPC khác (từ app cũ, POS có dùng)
-
-- `get_next_akh_num()` — sinh mã AKH cho khách mới
-
-### Bước 7 — Bảng + RPC Đổi/Trả
-
-```sql
+-- BƯỚC 7: đổi/trả
 phieu_doi_tra_pos (
     ma_pdt           text PRIMARY KEY,         -- AHDD000001
-    ma_hd_goc        text REFERENCES hoa_don_pos(ma_hd),  -- bắt buộc
+    ma_hd_goc        text REFERENCES hoa_don_pos(ma_hd),
     chi_nhanh        text,
-    ma_kh, ten_khach, sdt_khach,                -- snapshot từ HĐ gốc
-    loai_phieu       text,                      -- "Trả" | "Đổi ngang" | "Đổi có chênh lệch"
-    tien_hang_tra    integer,                   -- tổng món khách trả lại
-    tien_hang_moi    integer,                   -- tổng món mua mới
-    chenh_lech       integer,                   -- = moi - tra (>0 khách bù; <0 shop hoàn)
-    tien_mat         integer,                   -- âm nếu shop hoàn
+    ma_kh, ten_khach, sdt_khach,
+    loai_phieu       text,                     -- "Trả" | "Đổi ngang" | "Đổi có chênh lệch"
+    tien_hang_tra    integer,
+    tien_hang_moi    integer,
+    chenh_lech       integer,                  -- = moi - tra (>0 khách bù; <0 shop hoàn)
+    tien_mat         integer,
     chuyen_khoan     integer,
     the              integer,
-    trang_thai       text,                      -- "Hoàn thành" | "Đã hủy"
+    trang_thai       text,                     -- "Hoàn thành" | "Đã hủy"
     nguoi_tao, nguoi_tao_id, ghi_chu,
     created_at, cancelled_by, cancelled_at
 )
@@ -238,60 +194,173 @@ phieu_doi_tra_pos (
 phieu_doi_tra_pos_ct (
     id              bigserial PRIMARY KEY,
     ma_pdt          text REFERENCES ... ON DELETE CASCADE,
-    kieu            text,                       -- "tra" (cộng kho) | "moi" (trừ kho)
+    kieu            text,                      -- "tra" (cộng kho) | "moi" (trừ kho)
     ma_hang, ten_hang, so_luong, don_gia, thanh_tien
 )
 
-CREATE SEQUENCE ahdd_seq START 1;
+-- BƯỚC 8: đặt hàng theo yêu cầu
+phieu_dat_hang (
+    ma_pdh           text PRIMARY KEY,         -- AHDC000001
+    chi_nhanh        text,
+    ma_kh, ten_khach, sdt_khach,
+    ten_hang_yeu_cau text,                     -- free-text mô tả
+    so_luong         integer,
+    gia_du_kien      integer,
+    tien_coc         integer,                  -- cọc đã thu
+    pttt_coc_tien_mat, pttt_coc_chuyen_khoan, pttt_coc_the integer,  -- chi tiết PTTT cọc
+    trang_thai       text,                     -- "Chờ đặt" | "Chờ lấy" | "Hoàn thành" | "Đã hủy"
+    ngay_du_kien_co  date,
+    ghi_chu          text,
+    nguoi_tao, nguoi_tao_id,
+    created_at, updated_at,
+    cancelled_by, cancelled_at,
+    ly_do_huy        text,                     -- "Trả cọc" | "Giữ cọc"
+    ma_hd            text                      -- link tới hoa_don_pos khi Hoàn thành
+)
+
+-- Sequences
+CREATE SEQUENCE ahd_seq START 1;     -- AHD HĐ POS
+CREATE SEQUENCE ahdd_seq START 1;    -- AHDD phiếu đổi/trả
+CREATE SEQUENCE ahdc_seq START 1;    -- AHDC phiếu đặt hàng (BƯỚC 8)
 ```
 
-**RPC: `tao_phieu_doi_tra_pos(payload)`** — atomic
-- Validate HĐ gốc tồn tại + không hủy
-- Validate ngày: > 7 ngày → cần `is_admin=true` từ payload
-- Validate items_tra: SL ≤ (SL gốc - SL đã trả ở phiếu trước Hoàn thành)
-- Validate items_moi: check tồn (chỉ Hàng hóa)
-- Cộng kho "tra", trừ kho "moi" (chỉ Hàng hóa)
-- Tự suy ra `loai_phieu` từ tổng tra/mới
-- PTTT: nếu chenh_lech < 0 (shop hoàn) → chỉ cho tiền mặt (auto correct = chenh_lech, CK + Thẻ phải = 0)
-- Sinh mã `AHDD{seq:06d}`
+### RPC functions của POS
 
-**RPC: `huy_phieu_doi_tra_pos(p_ma_pdt, p_cancelled_by)`** — atomic, đảo ngược kho
+**HĐ POS (Bước 3-4):**
+- `tao_hoa_don_pos(payload jsonb) → jsonb` — atomic create với `bypass_stock_check` cho HĐ từ phiếu đặt (Bước 8)
+- `huy_hoa_don_pos(p_ma_hd, p_cancelled_by) → jsonb` — atomic cancel, hoàn tồn kho, **block nếu HĐ đã có phiếu đổi/trả Hoàn thành** (patch 04)
+- `get_next_ahd_num() → bigint`
 
-### Quyết định nghiệp vụ Bước 7 (chốt với user)
+**Đổi/Trả (Bước 7):**
+- `tao_phieu_doi_tra_pos(payload) → jsonb` — atomic, validate cumulative SL trả ≤ SL gốc, gate 7 ngày trừ admin
+- `huy_phieu_doi_tra_pos(p_ma_pdt, p_cancelled_by) → jsonb` — atomic, đảo ngược kho
 
-| # | Quyết định | Ghi chú |
-|---|------------|---------|
-| B7-1 | Hỗ trợ tất cả: Trả, Đổi ngang, Đổi có chênh lệch, Trả 1 phần | Phân loại tự động theo tổng tra vs mới |
-| B7-2 | Giới hạn 7 ngày cho NV thường; admin override | Check ở RPC + UI |
-| B7-3 | Không loại trừ sản phẩm nào | "Cho đổi/trả mọi mặt hàng" |
-| B7-4 | Chỉ cần SĐT (hoặc mã HĐ) tra ra HĐ → đổi được | UI: ô tìm SĐT/Mã ở đầu tab Lịch sử |
-| B7-5 | NV thường tự xử lý, không cần admin duyệt | RPC nhận `is_admin` chỉ để gate giới hạn 7 ngày |
-| B7-6 | Hàng trả tự cộng `the_kho` ngay (không phân biệt nguyên vẹn/hỏng) | Phase 1 đơn giản |
-| B7-7 | Phiếu link HĐ gốc qua `ma_hd_goc` (FK) | Modal HĐ gốc hiện list phiếu đổi/trả |
-| B7-8 | Chỉ admin được hủy phiếu | RPC không gate role; UI gate |
-| B7-9 | 1 HĐ gốc → nhiều phiếu đổi/trả OK, miễn tổng SL trả ≤ SL gốc | RPC tính cumulative `sl_da_tra` |
-| B7-10 | Tiền hoàn (chenh_lech<0): chỉ tiền mặt | Q1 với user |
-| B7-11 | `khach_hang.tong_ban` GIỮ NGUYÊN khi đổi/trả | Q4 — đơn giản |
-| B7-12 | UI: nhúng vào tab Lịch sử (không tạo tab mới) | + ô tìm SĐT/Mã đầu tab |
+**Đặt hàng (Bước 8):**
+- `tao_phieu_dat_hang(payload) → jsonb` — tạo phiếu Chờ đặt + cọc
+- `cap_nhat_trang_thai_phieu_dat(p_ma_pdh, p_trang_thai_moi, ...) → jsonb` — chuyển Chờ đặt → Chờ lấy
+- `hoan_thanh_phieu_dat_hang(payload) → jsonb` — tạo HĐ POS có `tien_coc_da_thu` + link `ma_pdh`, cho sửa giá lúc này, **bypass_stock_check=true**
+- `huy_phieu_dat_hang(p_ma_pdh, p_cancelled_by, p_ly_do_huy) → jsonb` — Trả cọc hoặc Giữ cọc
 
-### `utils/db.py` — thêm functions Bước 7
+**Session token (URL session):**
+- `create_session(p_nv_id, p_user_agent) → jsonb` — token UUID, expires cuối ngày VN qua `date_trunc + Asia/Ho_Chi_Minh`
+- `validate_session(p_token) → jsonb` — return user info nếu hợp lệ
+- `revoke_user_sessions(p_nv_id) → jsonb` — revoke ALL sessions của 1 NV
+- `revoke_session_by_token(p_token) → jsonb` — revoke 1 token cụ thể
 
-- `search_hoa_don_pos(keyword, chi_nhanh_list, limit=30)` — ilike SĐT/mã, mọi ngày
-- `load_hoa_don_pos_by_ma(ma_hd)` — load 1 HĐ kèm items
-- `load_phieu_doi_tra_by_hd(ma_hd_goc)` — list phiếu đổi/trả của 1 HĐ
-- `get_sl_da_tra_map(ma_hd_goc)` — map {ma_hang: tổng SL đã trả ở các phiếu Hoàn thành}
-- `tao_phieu_doi_tra_pos_rpc(payload)` / `huy_phieu_doi_tra_pos_rpc(ma_pdt, cancelled_by)`
+---
 
-### `modules/doi_tra.py` — màn Đổi/Trả
+## QUYẾT ĐỊNH NGHIỆP VỤ ĐÃ CHỐT
 
-State:
-- `st.session_state["doi_tra_active"]` = `ma_hd_goc` | None — gate render full-screen
-- `st.session_state["doi_tra_tra_map"]` = `{idx_item_in_hd_goc: sl_tra}`
-- `st.session_state["doi_tra_moi_cart"]` = list items mua mới
+### Bước 7 — Đổi/Trả (B7-1 .. B7-16)
 
-UI sections: HĐ gốc info → Section A (chọn món trả) → Section B (search + cart mua mới) → Section C (tóm tắt + chênh lệch + PTTT) → footer xác nhận. Sau RPC OK → `_close_doi_tra()` + `load_hang_hoa_pos.clear()` + rerun về Lịch sử.
+| # | Quyết định |
+|---|------------|
+| B7-1 | Hỗ trợ Trả, Đổi ngang, Đổi có chênh lệch, Trả 1 phần |
+| B7-2 | Giới hạn 7 ngày cho NV; admin override |
+| B7-3 | Không loại trừ sản phẩm nào |
+| B7-4 | Tra HĐ qua SĐT hoặc mã HĐ |
+| B7-5 | NV thường tự xử lý, không cần admin duyệt |
+| B7-6 | Hàng trả tự cộng `the_kho` ngay |
+| B7-7 | Phiếu link HĐ gốc qua `ma_hd_goc` |
+| B7-8 | Chỉ admin được hủy phiếu đổi/trả |
+| B7-9 | 1 HĐ → nhiều phiếu OK, miễn tổng SL trả ≤ SL gốc |
+| B7-10 | Shop hoàn tiền chỉ tiền mặt |
+| B7-11 | `khach_hang.tong_ban` GIỮ NGUYÊN khi đổi/trả (Phase 1) → Bước 7B đổi: cộng `chenh_lech` AHDD |
+| B7-12 | UI nhúng vào tab Lịch sử |
+| B7-13 | Mã prefix `AHDD`, sequence `ahdd_seq` |
+| B7-14 | 1 bảng `_ct` chung cho cả "tra" và "moi" (cột `kieu`) |
+| B7-15 | Block hủy HĐ gốc khi đã có phiếu đổi/trả Hoàn thành (patch 04) |
+| B7-16 | Sau hoàn thành phiếu, clear cache `load_phieu_doi_tra_pos_history` + `load_hang_hoa_pos` |
 
-Cũng export: `dialog_chi_tiet_pdt(pdt)` + `dialog_confirm_huy_pdt(pdt)` cho `lich_su.py` dùng.
+### Bước 7B — Adapter web app (4 quyết định)
+
+1. Doanh thu gộp: cộng `chenh_lech` AHDD vào doanh thu (chenh_lech > 0 = thu thêm; < 0 = hoàn)
+2. Bán hàng theo nhóm: tính **net items** (items mới trừ items trả) cho XNT chính xác
+3. `khach_hang.tong_ban`: cộng dồn `chenh_lech` AHDD theo SĐT (chỉ "Hoàn thành")
+4. Tab "Tra cứu hóa đơn" web app: merge AHDD vào danh sách, hiển thị badge "Đổi/Trả"
+
+### Bước 8 — Đặt hàng (B8-1 .. B8-9)
+
+| # | Quyết định |
+|---|------------|
+| B8-1 | 4 trạng thái: **Chờ đặt → Chờ lấy → Hoàn thành** + Đã hủy. Có thể skip Chờ lấy (đi thẳng từ Chờ đặt → Hoàn thành) khi cần |
+| B8-2 | Cọc lưu chi tiết PTTT (tiền mặt + CK + thẻ) |
+| B8-3 | Tên hàng yêu cầu = **free-text**, không đụng `hang_hoa` / `the_kho` |
+| B8-4 | RPC `bypass_stock_check=true` khi tạo HĐ từ phiếu đặt (vì hàng yêu cầu có thể chưa có trong DB) |
+| B8-5 | Cho sửa giá lúc Hoàn thành (giá lúc đặt là dự kiến, giá thực tế có thể khác) |
+| B8-6 | Admin được hủy phiếu bất kỳ trạng thái với option "Trả cọc" hoặc "Giữ cọc" |
+| B8-7 | Mã prefix `AHDC`, sequence `ahdc_seq` |
+| B8-8 | UI: tab riêng "Đặt hàng" trong POS app |
+| B8-9 | Khi Hoàn thành → tạo `hoa_don_pos` link qua `ma_pdh`, cọc thành `tien_coc_da_thu` trên HĐ |
+
+### LINE Notification
+
+- **Trigger:** Database Webhook trên `hoa_don_pos` INSERT
+- **Edge Function:** `line-notify` (Deno/TypeScript) — `setTimeout(1500)` chờ ghi xong `hoa_don_pos_ct` rồi mới fetch chi tiết → push LINE
+- **Định tuyến CN:** Cấu hình cứng trong code TS:
+  - `100 LQĐ` + `GO BÀ RỊA` → cùng group `LINE_GROUP_BARIA`
+  - `Coop Vũng Tàu` → return 200, skip (chưa có group)
+- **Group ID:** lấy bằng webhook.site sniff payload
+- **Auto-response messages** trên LINE Manager đã **tắt** (tránh bot spam khi NV chat trong nhóm)
+
+### Session Token Architecture (URL params)
+
+**Lịch sử thử nghiệm:**
+
+1. **streamlit-local-storage** (initial) → **leak singleton** giữa users trên Streamlit Cloud (module-level `_LS = LocalStorage()` share)
+2. **streamlit-cookies-controller** (option B) → Pass isolation, **FAIL persist** (cookie session-only, không expose `expires` argument)
+3. **extra-streamlit-components** option 1 (cache trong `st.session_state`) → Pass isolation, **FAIL persist** (instance bị stale)
+4. **extra-streamlit-components** option 2 (`@st.cache_resource`) → Pass persist, **FAIL isolation** (instance share giữa users → leak NV này thành NV khác) + **CachedWidgetWarning vàng**
+5. **URL query params** (final) → Pass isolation + Pass logout + **FAIL persist** (URL không nhớ khi đóng tab)
+
+**Quyết định cuối:** URL params `?t=xxx&b=xxx`. NV phải nhập PIN mỗi sáng (~5 giây). An toàn 100%, không leak. Trade-off này hợp lý cho shop 3 CN với NV cố định.
+
+**SQL Patch 07 (`pos_patch_07_session.sql`):** ALTER `sessions` thêm `last_used_at`, `user_agent`, `revoked_at`, indexes; 4 RPC trên.
+
+**Quyết định LS-1 .. LS-5:**
+- LS-1: Token expire cuối ngày VN
+- LS-2: Logout = revoke ALL sessions cross-device (cùng NV)
+- LS-3: Admin web app xem session active (chưa làm UI, chỉ có DB schema)
+- LS-4: Cho phép nhiều thiết bị cùng login 1 NV
+- LS-5: ~~localStorage~~ → URL params
+
+**Test results final (URL params):**
+- Test 1 isolation: PASS ✓
+- Test 2 persist: FAIL (chấp nhận trade-off)
+- Test 3 logout cross-device: PASS ✓ (do nv reload phải qua validate_session)
+- Test 4 hết ngày: chưa đủ điều kiện test
+
+**Phương án B (để dành làm sau):** Lưu `last_nv_id` vào localStorage browser thuần (qua `st.components.v1.html` JS injection). Mở app → bấm tên NV (skip bước chọn) → chỉ nhập PIN 4 số. Không lưu credential, chỉ "gợi ý" UX. Risk thấp.
+
+---
+
+## QUYẾT ĐỊNH KỸ THUẬT (DECISIONS)
+
+| # | Quyết định | Lý do |
+|---|------------|-------|
+| D1 | POS tạo bảng riêng `hoa_don_pos` (normalized) | Schema sạch. Adapter Bước 6 lo gộp |
+| D2 | Adapter trong Python ở Bước 6 | Surgical, code app cũ thay đổi 1-2 dòng/module |
+| D3 | RPC atomic cho mọi thao tác ghi DB | Tránh race condition |
+| D4 | Dịch vụ: `loai_sp = "Dịch vụ"` → skip stock check + skip trừ kho | Không phá kho |
+| D5 | Tien thừa: ghi nhận `tien_thua` column nhưng không auto-credit | Phase 1 đơn giản |
+| D6 | NV thường thấy mọi HĐ POS của CN | User chọn |
+| D7 | Hủy HĐ: chỉ admin, bất kỳ lúc nào | User chọn |
+| D8 | HĐ đã hủy: hiện xám trong list | User chọn |
+| D9 | "Xem cũ hơn" lịch sử: +1 ngày/click | User chọn |
+| D10 | In K80: kiến trúc Cloud-to-LAN spooler | Pending |
+| D11 | Bước 6: tách prefix APSC / AHD / KiotViet | User chọn |
+| D12 | Sau bỏ KiotViet: không cần code thay đổi | Adapter tự thích nghi |
+| D13 | Bước 7 prefix `AHDD`, sequence riêng | Tách bạch HĐ POS |
+| D14 | Bước 7: 1 bảng `_ct` chung (cột `kieu`) | Đơn giản hơn 2 bảng |
+| D15 | Bước 7: shop hoàn tiền chỉ tiền mặt | User chọn |
+| D16 | Bước 7B: tong_ban cộng `chenh_lech` AHDD | Sửa D11 cũ — chính xác hơn |
+| D17 | Bước 8: prefix `AHDC`, sequence `ahdc_seq` | Tách bạch |
+| D18 | Bước 8: free-text tên hàng, không đụng `hang_hoa` | Hàng yêu cầu thường chưa có trong DB |
+| D19 | Bước 8: RPC `bypass_stock_check` cho HĐ từ phiếu đặt | Hàng free-text không có `the_kho` |
+| D20 | Bước 8: cọc lưu chi tiết PTTT (3 cột) | Báo cáo chính xác |
+| D21 | LINE Edge Function: `setTimeout(1500)` chờ ghi `_ct` | Streamlit ghi tuần tự, header xong trước chi tiết |
+| D22 | Session token URL params (sau 4 vòng cookie thất bại) | An toàn 100% > UX persist |
+| D23 | Logs thao tác POS chưa ghi vào `action_logs` | Pending |
 
 ---
 
@@ -300,112 +369,118 @@ Cũng export: `dialog_chi_tiet_pdt(pdt)` + `dialog_confirm_huy_pdt(pdt)` cho `li
 ### `utils/db.py` (POS)
 
 ```python
-# Helpers
-load_nhan_vien_active()       # cache 5min
-load_pin(nv_id)               # PIN hash của NV
-set_pin(nv_id, pin_hash)
-load_hang_hoa_pos(chi_nhanh)  # cache 5min, kèm tồn kho từ the_kho
-                              # Dịch vụ: ton = 999999 (vô hạn)
-                              # Hàng hóa: ton từ the_kho thực tế
+# Helpers (cache 5min unless noted)
+load_nhan_vien_active()
+load_pin(nv_id) / set_pin(nv_id, pin_hash)
+load_hang_hoa_pos(chi_nhanh)             # Dịch vụ: ton=999999 vô hạn
 
 # Khách hàng
 lookup_khach_hang_by_sdt(sdt)
-upsert_khach_hang(ten, sdt, chi_nhanh)  # tự sinh mã AKH nếu mới
-clean_phone(s)                # validator: chỉ giữ chữ số, max 15
-clean_name(s)                 # trim + collapse whitespace, max 100
+upsert_khach_hang(ten, sdt, chi_nhanh)   # tự sinh AKH nếu mới
+clean_phone(s) / clean_name(s)
 
-# Lịch sử + RPC
+# HĐ POS
 load_hoa_don_pos_history(chi_nhanh, from_date_iso)
 tao_hoa_don_pos_rpc(payload)
 huy_hoa_don_pos_rpc(ma_hd, cancelled_by)
+
+# Đổi/Trả (Bước 7)
+search_hoa_don_pos(keyword, chi_nhanh_list, limit=30)
+load_hoa_don_pos_by_ma(ma_hd)
+load_phieu_doi_tra_by_hd(ma_hd_goc)
+get_sl_da_tra_map(ma_hd_goc)
+load_phieu_doi_tra_pos_history(chi_nhanh, from_date)
+tao_phieu_doi_tra_pos_rpc(payload)
+huy_phieu_doi_tra_pos_rpc(ma_pdt, cancelled_by)
+
+# Đặt hàng (Bước 8)
+load_phieu_dat_hang(chi_nhanh, trang_thai_filter=None)
+tao_phieu_dat_hang_rpc(payload)
+cap_nhat_trang_thai_phieu_dat_rpc(...)
+hoan_thanh_phieu_dat_hang_rpc(payload)
+huy_phieu_dat_hang_rpc(ma_pdh, cancelled_by, ly_do_huy)
+
+# Session (URL token)
+create_session_rpc(nv_id, user_agent)
+validate_session_rpc(token)
+revoke_user_sessions_rpc(nv_id)
+revoke_session_by_token_rpc(token)
 ```
 
-### `utils/auth.py` (POS)
+### `utils/auth.py` (POS) — URL session token
 
 ```python
-run_auth_gate()               # gate ở đầu app.py — không pass thì stop
+# Constants
+_URL_TOKEN_KEY  = "t"
+_URL_BRANCH_KEY = "b"
+
+# 5 helpers thay localStorage:
+_ls_get_token() / _ls_set_token(token) / _ls_delete_token()
+_ls_get_branch() / _save_branch_localstorage(branch)
+# Tất cả dùng st.query_params
+
+# Flow chính:
+run_auth_gate()                  # gate ở đầu app.py — không pass thì stop
+restore_session()                # đọc URL token → validate_session RPC → set st.session_state["user"]
 get_user() / get_active_branch() / get_accessible_branches() / is_admin()
-do_logout()
-_render_numpad_input(prefix, max_len=4)  # PIN: input native + numpad button
-                                          # Container key prefix "numkb-" → tự inputmode=numeric
-                                          # Container key prefix "numkb-tel-" → inputmode=tel
+do_logout()                      # revoke_user_sessions + clear URL params
+_render_numpad_input(prefix)     # input native + numpad
 render_session_warning_banner()  # banner vàng 30 phút trước expire 23:59:59 VN
-                                  # Dùng ZoneInfo để format đúng giờ VN
 ```
 
 ### `app.py` (POS)
 
-- Cấu trúc: `set_page_config` → MutationObserver inject (global, 1 lần) → CSS mobile → `run_auth_gate()` → header (logo + CN popover + avatar popover) → `render_session_warning_banner()` → tabs "Bán hàng" / "Lịch sử"
-- **MutationObserver pattern:** Container `st.container(key="numkb-XXX")` → JS auto set `inputmode="numeric"` cho input bên trong. Fix vấn đề bàn phím chữ bật ở lần đầu vào.
+- Cấu trúc: `set_page_config` → MutationObserver inject (1 lần) → CSS mobile → `run_auth_gate()` → header (logo + CN popover + avatar popover) → `render_session_warning_banner()` → tabs **"Bán hàng" / "Lịch sử" / "Đặt hàng"**
 
-### `modules/ban_hang.py` (POS)
+### `modules/ban_hang.py`
 
 State routing qua `st.session_state["pos_step"]`:
 - `None` → màn 2 (search + giỏ)
 - `"thanh_toan"` → màn 3 (thanh toán)
 - `"success"` → màn success
 
-Cart state: `st.session_state["pos_cart"]` = list of dicts với fields: ma_hang, ten_hang, so_luong, don_gia, giam_gia_dong, ton_kho, **loai_sp**
+**Bước 8 mở rộng:** ban_hang.py có hỗ trợ tạo HĐ từ phiếu đặt — khi `st.session_state["from_pdh"]` có giá trị thì hiện cọc đã thu trong dialog thanh toán.
 
-### `modules/lich_su.py` (POS)
+### `modules/lich_su.py`
 
-State: `st.session_state["lichsu_days_back"]` (mặc định 0 = chỉ hôm nay)
+State: `st.session_state["lichsu_days_back"]` (mặc định 0)
 
-Confirm hủy 2 bước:
-1. Bấm nút "🚫 Hủy hóa đơn" trong modal chi tiết → set `st.session_state["lichsu_confirm_huy"] = inv` → rerun
-2. Dialog `_dialog_confirm_huy` mở (vì state đã set) → user xác nhận → call RPC → toast → reload
+**Bước 7B merge:** danh sách hiển thị cả HĐ POS và phiếu đổi/trả AHDD (bằng cờ trong row). Modal chi tiết phân biệt theo prefix.
 
----
+Search range: tab "Ngày tháng" có date range picker 3 cột (từ ngày, đến ngày, áp dụng).
 
-## APP CŨ — BAO GỒM POS DATA (Bước 6)
+**Bug đã fix:**
+- Form Tạo mới không reset → counter pattern `dh_form_reset_cnt`
+- HĐ POS từ phiếu đặt không hiện cọc → thêm `tien_coc_da_thu` vào dialog
+- Web app HĐ thiếu cọc PTTT chi tiết → join `phieu_dat_hang` trong `_load_hoa_don_pos_flat`
+- `'dict' object has no attribute 'DataFrame'` → rename loop var `pd` → `_pdat_row`
+- IndentationError line 681 → indent body của `if not all_items` 8 spaces
 
-### Adapter pattern
+### `modules/doi_tra.py`
 
-```python
-# utils/db.py app cũ — đã thêm:
+Full-screen mode khi `st.session_state["doi_tra_active"]` = `ma_hd_goc`.
 
-@st.cache_data(ttl=300, show_spinner=False)
-def _load_hoa_don_pos_flat(branches_key):
-    # Load hoa_don_pos + hoa_don_pos_ct
-    # Flatten thành format giống hoa_don (KiotViet denormalized)
-    # Mỗi item = 1 dòng, header lặp lại
-    # Map columns: ma_hd → "Mã hóa đơn", created_at → "Thời gian" (dd/MM/yyyy HH:mm:ss)...
+State:
+- `doi_tra_tra_map` = `{idx_item_in_hd_goc: sl_tra}`
+- `doi_tra_moi_cart` = list items mua mới
 
-@st.cache_data(ttl=300, show_spinner=False)
-def load_hoa_don_unified(branches_key):
-    df_old = load_hoa_don(branches_key)
-    df_pos = _load_hoa_don_pos_flat(branches_key)
-    return pd.concat([df_old, df_pos], ignore_index=True, sort=False)
+Sections: HĐ gốc info → A (chọn món trả) → B (search + cart mới) → C (tóm tắt + chênh lệch + PTTT) → footer.
 
-def invalidate_hoa_don_cache():  # clear khi có thay đổi
-```
+Sau RPC OK → `_close_doi_tra()` + `load_hang_hoa_pos.clear()` + `load_phieu_doi_tra_pos_history.clear()` + rerun.
 
-### Modules đã đổi `load_hoa_don()` → `load_hoa_don_unified()`
+Cũng export: `dialog_chi_tiet_pdt(pdt)` + `dialog_confirm_huy_pdt(pdt)`.
 
-- `modules/hoa_don.py` (1 dòng)
-- `modules/khach_hang.py` (1 dòng, trong tab_detail)
-- `modules/tong_quan.py` (2 dòng: `module_tong_quan` + `hien_thi_dashboard`)
-- `modules/bao_cao.py` — phức tạp hơn:
+### `modules/dat_hang.py` (Bước 8)
 
-### Phân loại HĐ trong `bao_cao.py` (đã thêm)
+Tabs: **"Danh sách phiếu" / "Tạo mới"**
 
-```python
-APSC_PREFIXES = ["APSC"]                      # Sửa chữa
-POS_PREFIXES  = ["AHD"]                       # POS bán hàng
-APP_INVOICE_PREFIXES = APSC_PREFIXES + POS_PREFIXES  # backward compat
+Tab Danh sách: filter theo trạng thái + search SĐT/mã. Modal chi tiết theo trạng thái:
+- **Chờ đặt:** action "Chuyển sang Chờ lấy" hoặc "Skip → Hoàn thành"
+- **Chờ lấy:** action "Hoàn thành" (mở dialog tạo HĐ POS, cho sửa giá)
+- **Hoàn thành:** chỉ xem
+- **Đã hủy:** chỉ xem + hiện lý do
 
-_is_apsc_hd(ma)      # APSC riêng
-_is_pos_hd(ma)       # POS riêng
-_is_app_hd(ma)       # cả 2 (giữ lại để code cũ dùng)
-_is_kiotviet_hd(ma)  # KiotViet legacy
-```
-
-### Báo cáo đã update
-
-- **Doanh thu (Cuối ngày + Tổng quan):** 4 cột (Tổng / Số HĐ / Bán hàng / Sửa chữa APSC) + chú thích "💡 Bán hàng — KiotViet: X · POS: Y" khi có cả 2
-- **XNT:** "Bán hàng (KiotViet)" + "Bán hàng (POS)" + "Sửa chữa (APSC) — chỉ linh kiện" — 3 dòng riêng
-- **Tra cứu mã hàng:** thêm query `hoa_don_pos_ct` cho dòng "Bán hàng (POS)"
-- **`load_khach_hang_list`:** `tong_ban` = tổng KiotViet + tổng POS theo SĐT (chỉ "Hoàn thành")
+Tab Tạo mới: form free-text tên hàng, SL, giá dự kiến, cọc PTTT chi tiết. Sau lưu OK → counter `dh_form_reset_cnt += 1` để reset widgets keys.
 
 ---
 
@@ -413,102 +488,76 @@ _is_kiotviet_hd(ma)  # KiotViet legacy
 
 ### 1. Mobile column stacking fix (CSS scoped)
 
-Streamlit ép `flex-direction: column` ở `@media (max-width: 640px)`. Ghi đè bằng:
-
 ```python
 _CSS = """<style>
 .st-key-{ZONE} div[data-testid="stHorizontalBlock"] {
     flex-direction: row !important;
     flex-wrap: nowrap !important;
-    width: 100% !important;
 }
 .st-key-{ZONE} div[data-testid="stHorizontalBlock"] > div {
-    min-width: 0 !important;  /* allow text shrink */
+    min-width: 0 !important;
 }
 </style>"""
-
-st.markdown(_CSS, unsafe_allow_html=True)
-with st.container(key="ZONE"):
-    cols = st.columns([3, 2])  # ratio điều chỉnh
 ```
-
-Đã áp dụng ở: `cart-rows-zone`, `cart-header-zone`, `header-zone`, và các zone tương tự.
 
 ### 2. Numeric keyboard global (MutationObserver)
 
-Trong `app.py` POS đã inject 1 lần:
-
 ```javascript
-// Mọi input/textarea trong container có class chứa "st-key-numkb"
+// Inject 1 lần ở app.py: input/textarea trong container "st-key-numkb-*"
 // → tự set inputmode="numeric" hoặc "tel"
-var observer = new MutationObserver(function(mutations) {
-    // áp khi DOM thay đổi
-});
-observer.observe(doc.body, {childList: true, subtree: true});
 ```
 
-Pattern dùng: `st.container(key="numkb-XXX")` cho numeric, `st.container(key="numkb-tel-XXX")` cho phone.
+Pattern: `st.container(key="numkb-XXX")` cho numeric, `st.container(key="numkb-tel-XXX")` cho phone.
 
 ### 3. Timezone
 
-POS cùng app cũ dùng `ZoneInfo("Asia/Ho_Chi_Minh")` cho VN time. Quan trọng: Supabase lưu `timestamptz` ở UTC. Khi format hiển thị, **phải convert về VN** trước khi `strftime`:
+`ZoneInfo("Asia/Ho_Chi_Minh")` cho VN time. Supabase lưu `timestamptz` UTC. **Phải convert về VN** trước `strftime`:
 
 ```python
 expires.astimezone(ZoneInfo("Asia/Ho_Chi_Minh")).strftime("%H:%M")
 ```
 
+`_to_vn()` helper handle naive datetime từ Supabase.
+
 ### 4. Streamlit toast icon
 
-`st.toast(msg, icon="✅")` — phải dùng emoji thật (✅), không được dùng ký tự Unicode "Check Mark" (✓ U+2713). Streamlit reject ký tự không phải emoji.
+`st.toast(msg, icon="✅")` — phải emoji thật, không Unicode "Check Mark" (✓).
 
-### 5. Dialog state pattern (cho hủy 2 bước)
+### 5. Dialog state pattern
 
 ```python
-# Tab chính:
 pending = st.session_state.get("lichsu_confirm_huy")
 if pending:
-    _dialog_confirm_huy(pending)  # Streamlit @st.dialog tự render
+    _dialog_confirm_huy(pending)
 
-# Trong modal chi tiết, khi user bấm Hủy:
-if st.button("🚫 Hủy"):
-    st.session_state["lichsu_confirm_huy"] = inv
-    st.rerun()  # close modal hiện tại, mở dialog confirm
-
-# Trong dialog confirm, khi user bấm Quay lại:
-st.session_state.pop("lichsu_confirm_huy", None)
+# Trong modal khi user bấm Hủy:
+st.session_state["lichsu_confirm_huy"] = inv
 st.rerun()
 ```
 
 ### 6. Cache invalidation sau ghi DB
 
-Sau khi tạo/hủy HĐ POS:
 ```python
-load_hang_hoa_pos.clear()      # tồn kho thay đổi
-# App cũ tự thấy sau ≤5 phút (cache TTL của adapter)
+load_hang_hoa_pos.clear()
+load_phieu_doi_tra_pos_history.clear()
+load_phieu_dat_hang.clear()
 ```
 
----
+### 7. Reset counter pattern cho form
 
-## QUYẾT ĐỊNH KỸ THUẬT QUAN TRỌNG (DECISIONS)
+```python
+rk = st.session_state.get("dh_form_reset_cnt", 0)
+ten = st.text_input("Tên hàng", key=f"dh_ten_{rk}")
+# Sau lưu OK:
+st.session_state["dh_form_reset_cnt"] = rk + 1
+st.rerun()
+```
 
-| # | Quyết định | Lý do |
-|---|------------|-------|
-| D1 | POS tạo bảng riêng `hoa_don_pos` (normalized), không dùng `hoa_don` | Schema sạch, dễ maintain. Adapter Bước 6 lo việc gộp |
-| D2 | Phương án A — Adapter trong Python ở Bước 6 | Surgical, code app cũ thay đổi 1-2 dòng/module |
-| D3 | RPC atomic cho tạo/hủy HĐ POS | Tránh race condition khi 2 NV bán cùng món cuối |
-| D4 | Dịch vụ: `loai_sp = "Dịch vụ"` → skip stock check + skip trừ kho | Không phá kho, không cần the_kho cho dịch vụ |
-| D5 | Tien thừa: ghi nhận trong `tien_thua` column nhưng KHÔNG auto-credit cho HĐ sau | Phase 1 đơn giản, làm sau khi có nhu cầu |
-| D6 | NV thường thấy mọi HĐ POS của CN (không filter theo người bán) | User chọn — cần linh hoạt cho team nhỏ |
-| D7 | Hủy HĐ: chỉ admin, hủy bất kỳ lúc nào (không giới hạn ngày) | User chọn — admin cần linh hoạt |
-| D8 | HĐ đã hủy: hiện xám trong list (không ẩn) | User chọn — có dấu vết |
-| D9 | "Xem cũ hơn" lịch sử HĐ: +1 ngày mỗi click | User chọn — đơn giản |
-| D10 | In K80: kiến trúc Cloud-to-LAN spooler (POS INSERT print_queue → Local Daemon polls → TCP 9100) | User design |
-| D11 | Bước 6: tách prefix APSC / POS / KiotViet, hiển thị doanh thu 4 cột + caption tách KiotViet/POS | User chọn |
-| D12 | Sau khi bỏ KiotViet, không cần code thay đổi gì | Adapter tự thích nghi |
-| D13 | Bước 7: prefix mới `AHDD` cho phiếu đổi/trả (sequence riêng `ahdd_seq`) | Tách bạch với HĐ POS |
-| D14 | Bước 7: 1 phiếu đổi/trả lưu CẢ items trả + items mua mới trong 1 bảng `phieu_doi_tra_pos_ct` (cột `kieu`) | Đơn giản hơn 2 bảng |
-| D15 | Bước 7: shop hoàn tiền chỉ tiền mặt (Phase 1) | User chọn |
-| D16 | Bước 7: `khach_hang.tong_ban` không trừ khi đổi/trả | User chọn — đơn giản |
+### 8. Sanity check syntax trước push
+
+```bash
+python3 -c "import ast; ast.parse(open('modules/X.py').read())"
+```
 
 ---
 
@@ -524,165 +573,88 @@ CN_SHORT = {
     "Coop Vũng Tàu":  "Coop VT",
     "GO BÀ RỊA":      "GO BR",
 }
-CN_INFO = {  # đầy đủ địa chỉ + SĐT cho in hóa đơn (chưa dùng)
-    ...
-}
+CN_INFO = { ... }  # đầy đủ địa chỉ + SĐT
 ```
 
-### App cũ `utils/config.py`
-
-```python
-ALL_BRANCHES = [...]
-CN_SHORT = {...}
-IN_APP_MARKER   = "Chuyển hàng (App)"
-ARCHIVED_MARKER = "Chuyển hàng (App - đã đồng bộ)"
-APP_INVOICE_PREFIXES = ["APSC", "AHD"]  # đã update Bước 6
-```
-
-### Streamlit secrets (cả 2 app dùng cùng)
+### Streamlit secrets
 
 ```toml
 SUPABASE_URL = "https://xxxxx.supabase.co"
 SUPABASE_KEY = "xxxxx"
 ```
 
----
+### Supabase Edge Function secrets (LINE)
 
-## NHỮNG ĐIỂM CẦN LƯU Ý KHI LÀM BƯỚC 7 / 8
+```
+LINE_ACCESS_TOKEN = "xxx"
+LINE_GROUP_BARIA  = "Cxxxxxx"      # group cho 100 LQĐ + GO BR
+SUPABASE_URL      = "..."
+SUPABASE_SERVICE_ROLE_KEY = "..."
+```
 
-### Trước khi code
+### `requirements.txt`
 
-1. **Hỏi user các câu nghiệp vụ cụ thể** — user đã chuẩn bị câu trả lời sẵn cho cả 2 bước. Đừng giả định.
-2. **Đọc CLAUDE.md** trước (trong project knowledge) — bias về caution, simplicity.
-3. **Trình bày plan trước, code sau** — user sẽ approve plan rồi mới code.
+```
+streamlit>=1.36.0
+supabase>=2.0.0
+bcrypt>=4.0.0
+pandas>=2.0.0
+```
 
-### Bước 7 — Đổi/Trả hàng đã bán (câu hỏi đã hỏi user, user có sẵn câu trả lời)
-
-Tôi đã hỏi user các câu sau (xem context lịch sử):
-
-**A. Phạm vi:**
-- Đổi (1↔1), Trả (refund), Đổi có chênh lệch, Trả 1 phần — hỗ trợ tất cả hay chỉ một số?
-
-**B. Quy định cửa hàng:**
-- Đổi/trả trong bao nhiêu ngày?
-- Có loại trừ sản phẩm nào không (pin đã mở, dịch vụ đã thực hiện)?
-- Bắt buộc HĐ gốc, hay chỉ cần SĐT?
-
-**C. Ai được phép:**
-- Chỉ admin, hay NV thường có nhưng cần admin duyệt?
-
-**D. Tồn kho:**
-- Hàng trả về tự cộng `the_kho`?
-- Hay kiểm tra tình trạng (nguyên vẹn/hỏng) trước?
-
-**E. Truy vết:**
-- HĐ trả/đổi liên kết HĐ gốc?
-
-**Liên quan database (theo D2 trong AI_CONTEXT của app cũ):** Sẽ tạo bảng riêng `phieu_doi_tra_pos` (KHÔNG dùng `phieu_tra_hang` — bảng đó là trả hàng NCC).
-
-### Bước 8 — Đặt hàng theo yêu cầu (câu hỏi đã hỏi user)
-
-Tôi đã hỏi user:
-
-**A. Nghiệp vụ thực tế:**
-- Khách → đặt hàng chưa có → đặt cọc → đặt NCC → hàng về → khách đến lấy + thanh toán còn lại — đúng flow?
-
-**B. Tracking trạng thái:**
-- "Chờ đặt" → "Đã đặt NCC" → "Hàng về" → "Khách đã lấy" — full flow?
-- Hay đơn giản hơn: "Đang chờ" / "Hoàn thành" / "Hủy"?
-
-**C. Đặt cọc:**
-- Có ghi nhận đặt cọc? Bao nhiêu %?
-- Tiền cọc lưu ở đâu? Phiếu thu cọc riêng?
-- Hủy đơn → có hoàn cọc?
-
-**D. Mã sản phẩm:**
-- Có sẵn trong `hang_hoa` không?
-- Hay nhập tay free-text?
-
-**E. Khi hàng về:**
-- NV tạo phiếu nhập kho thủ công?
-- Hay bấm "Đã có hàng" → hệ thống tự cộng `the_kho`?
-
-**F. Khi khách đến lấy:**
-- Auto tạo HĐ POS trừ cọc?
-- Hay manual tạo HĐ?
-
-**G. Module nằm ở đâu:**
-- App POS (cùng tab Bán hàng / Lịch sử)?
-- Hay app cũ?
-
----
-
-## CÁC SESSION CŨ ĐÃ LÀM GÌ
-
-### Session 1 (cách đây): Bước 1-3
-- Setup auth PIN, sales screen, payment + RPC
-- Fix nhiều issues với Streamlit mobile (cột bị stack dọc, bàn phím chữ vs số)
-- Pattern MutationObserver cho numeric keyboard
-
-### Session 2 (cách đây): Bước 4-5
-- Lịch sử HĐ + hủy
-- Polish: validation strict, banner cảnh báo session, empty states đẹp hơn
-- Documentation: README, SETUP, ADMIN_GUIDE, full_setup.sql
-
-### Session hiện tại: Bước 6
-- Adapter `load_hoa_don_unified` trong app cũ
-- Tách prefix APSC / POS / KiotViet trong báo cáo
-- Update `tong_ban` của khách hàng cộng dồn cả 2 nguồn
-- 5 file patch cho user áp vào app cũ
-- User đã test 8 trường hợp đều OK
+(Đã bỏ `streamlit-local-storage`, `streamlit-cookies-controller`, `extra-streamlit-components` sau khi switch về URL params.)
 
 ---
 
 ## STYLE GUIDE KHI LÀM VIỆC VỚI USER
 
-- User nói **tiếng Việt**, prefer trả lời ngắn gọn rõ ràng
-- User dùng các thuật ngữ kỹ thuật chính xác (system architecture, RPC, atomic, etc.) — không cần giải thích đơn giản hóa
-- User kỹ tính, hay phát hiện edge case (ví dụ: bug logic SĐT khi không tick Khách lẻ; bug timezone hiển thị 16:59 thay vì 23:59)
-- User đôi khi tự fix code mà không báo (mobile column stacking) → **luôn ask user gửi lại file trước khi code tiếp** nếu có nguy cơ override
-- User có sẵn `CLAUDE.md` rule: think before coding, simplicity first, surgical changes
-- Khi đề xuất plan, **luôn list rõ scope rồi đợi approve** trước khi code
-- Khi gặp choice, **trình bày 2-3 lựa chọn, recommend 1, và giải thích tại sao** — đừng pick silently
+- Tiếng Việt, "mình/bạn", trả lời ngắn gọn rõ ràng
+- User dùng thuật ngữ kỹ thuật chính xác — không cần đơn giản hóa
+- User kỹ tính, hay phát hiện edge case
+- User đôi khi tự fix code mà không báo → **luôn ask user gửi lại file trước khi code tiếp** nếu có nguy cơ override
+- `CLAUDE.md`: think before coding, simplicity, surgical changes
+- Khi đề xuất plan, **luôn list rõ scope rồi đợi approve**
+- Khi có choice, **trình bày 2-3 lựa chọn, recommend 1, giải thích tại sao**
+- Khi user hỏi clarification, dùng `ask_user_input_v0` cho options nhanh
 
 ---
 
 ## CHECKLIST BÀN GIAO
 
-Trước khi bắt đầu Bước 7/8, Claude session mới nên:
+Claude session mới nên:
 
-1. ✅ Đọc file `CLAUDE.md` trong project knowledge
+1. ✅ Đọc `CLAUDE.md` trong project knowledge
 2. ✅ Đọc file này (`AI_CONTEXT.md`) hết
-3. ✅ Hỏi user gửi các file Python liên quan từ POS app (`utils/db.py`, `modules/lich_su.py`, `modules/ban_hang.py`) để có code hiện tại
-4. ✅ Hỏi user các câu nghiệp vụ Bước 7 (5 câu A-E) — user đã có câu trả lời sẵn
-5. ✅ Hỏi user các câu nghiệp vụ Bước 8 (7 câu A-G) — user đã có câu trả lời sẵn
-6. ✅ Sau khi có câu trả lời, **đề xuất plan kỹ thuật**, đợi user approve
-7. ✅ Code, deliver as patch hoặc full files, deliver SQL nếu cần
-8. ✅ Sau test, cập nhật roadmap
+3. ✅ Hỏi user gửi các file Python liên quan trước khi code (tránh override)
+4. ✅ Đề xuất plan kỹ thuật, đợi approve
+5. ✅ Code, deliver as patch hoặc full files
+6. ✅ Sau test, cập nhật roadmap
 
 ---
 
 ## TROUBLESHOOTING REFERENCE
 
-### Nếu user gặp lỗi sau deploy
-
 | Lỗi | Nguyên nhân | Fix |
 |-----|-------------|-----|
-| `Chưa cấu hình SUPABASE_URL` | Streamlit secrets thiếu | Set lại trong Streamlit Cloud → Secrets |
-| Bàn phím chữ thay vì số ở PIN | MutationObserver chưa kịp inject | Hard refresh (Ctrl+Shift+R) |
-| `Lỗi tạo hóa đơn: tồn không đủ` | Race condition / tồn = 0 | Refresh page, kiểm tra `the_kho` Supabase |
-| Banner session sai giờ (16:59 thay 23:59) | Strftime trên UTC datetime không convert | Đã fix Bước 5: `.astimezone(ZoneInfo("Asia/Ho_Chi_Minh"))` |
-| `st.toast` báo lỗi icon | Dùng ký tự Unicode không phải emoji | Đổi `✓` → `✅` |
-| HĐ POS không hiện app cũ | Cache 5 phút | Bấm nút "↺ Tải lại" header app cũ |
+| `Chưa cấu hình SUPABASE_URL` | Streamlit secrets thiếu | Set Streamlit Cloud → Secrets |
+| Bàn phím chữ thay vì số ở PIN | MutationObserver chưa inject | Hard refresh (Ctrl+Shift+R) |
+| `Lỗi tạo hóa đơn: tồn không đủ` | Race / tồn = 0 | Refresh, check `the_kho` |
+| Banner session sai giờ | Strftime trên UTC | Đã fix Bước 5: `.astimezone(...)` |
+| `st.toast` báo lỗi icon | Unicode thay vì emoji | `✓` → `✅` |
+| HĐ POS không hiện app cũ | Cache 5 phút | Bấm "↺ Tải lại" |
+| LINE không nhận thông báo | Edge Function lỗi hoặc Group ID sai | Check Supabase logs > Edge Functions > line-notify |
+| Multi-NV cùng login do share URL | URL chứa `?t=...` cũ | Mở URL gốc (không có query) → màn login |
+| HĐ từ phiếu đặt báo "không đủ tồn" | RPC quên `bypass_stock_check=true` | Patch 06 đã fix |
 
-### Nếu Streamlit Cloud rebuild fail
+---
 
-- Check `requirements.txt` có thiếu package mới không
-- Check syntax error: `python3 -c "import ast; ast.parse(open('app.py').read())"`
-- Roll back commit cuối cùng
+## RESET POS DATA SQL
+
+File `reset_pos_data.sql` (đã output): hoàn tồn kho cho HĐ Hoàn thành + đảo tồn từ phiếu đổi/trả + DELETE theo thứ tự FK + RESTART sequences về 1. Có sanity check cuối query.
+
+Dùng khi cần reset toàn bộ dữ liệu POS để test lại từ đầu (KHÔNG dùng production trừ khi user yêu cầu rõ).
 
 ---
 
 ## CONTACT
 
-User là **chủ cửa hàng đồng hồ DL Watch** ở Bà Rịa - Vũng Tàu. Liên hệ qua chat Claude.
+User: **chủ cửa hàng đồng hồ DL Watch** ở Bà Rịa - Vũng Tàu (Kevin). Liên hệ qua chat Claude.
