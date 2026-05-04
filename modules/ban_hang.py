@@ -832,10 +832,19 @@ def _render_section_pttt(khach_can_tra: int) -> dict:
                 border-radius: 10px !important;
                 min-height: 44px !important;
                 background: #fff !important;
-                font-size: 0.95rem !important;
+                font-size: 0.9rem !important;
             }
             .st-key-pos3-pttt-pills [data-testid="stBaseButton-secondary"][kind="secondary"] {
                 color: #1a1a2e !important;
+            }
+            .st-key-pos3-pttt-pills div[data-testid="stHorizontalBlock"] {
+                flex-direction: row !important;
+                flex-wrap: nowrap !important;
+                width: 100% !important;
+                gap: 6px !important;
+            }
+            .st-key-pos3-pttt-pills div[data-testid="stHorizontalBlock"] > div {
+                min-width: 0 !important;
             }
             </style>""",
             unsafe_allow_html=True,
