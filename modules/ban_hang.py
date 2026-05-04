@@ -827,54 +827,33 @@ def _render_section_pttt(khach_can_tra: int) -> dict:
     if not chia_nhieu:
         st.markdown(
             """<style>
-            .st-key-pos3-pttt-pills [data-testid="stBaseButton-secondary"] {
-                border: 1px solid #e6e6e6 !important;
-                border-radius: 10px !important;
-                min-height: 44px !important;
-                background: #fff !important;
-                font-size: 0.9rem !important;
-            }
-            .st-key-pos3-pttt-pills [data-testid="stBaseButton-secondary"][kind="secondary"] {
-                color: #1a1a2e !important;
-            }
-            .st-key-pos3-pttt-pills div[data-testid="stHorizontalBlock"] {
-                flex-direction: row !important;
+            .st-key-pos3-pttt-radio [role="radiogroup"] {
+                gap: 8px !important;
                 flex-wrap: nowrap !important;
-                width: 100% !important;
-                gap: 6px !important;
             }
-            .st-key-pos3-pttt-pills div[data-testid="stHorizontalBlock"] > div {
-                min-width: 0 !important;
+            .st-key-pos3-pttt-radio [role="radiogroup"] > label {
+                margin-right: 4px !important;
+            }
+            .st-key-pos3-pttt-radio [role="radiogroup"] p {
+                font-weight: 700 !important;
+                font-size: 0.95rem !important;
             }
             </style>""",
             unsafe_allow_html=True,
         )
-        options = [
-            ("tien_mat", "💵 Tiền mặt"),
-            ("chuyen_khoan", "🏦 Chuyển khoản"),
-            ("the", "💳 Thẻ"),
-        ]
-        selected = st.session_state.get("pos3_pttt_pick", "tien_mat")
-        with st.container(key="pos3-pttt-pills"):
-            c1, c2, c3 = st.columns(3)
-            for col, (value, label) in zip((c1, c2, c3), options):
-                with col:
-                    is_active = selected == value
-                    btn_label = f"✓ {label}" if is_active else label
-                    if st.button(
-                        btn_label,
-                        key=f"pos3_pttt_btn_{value}",
-                        use_container_width=True,
-                        type="primary" if is_active else "secondary",
-                    ):
-                        st.session_state["pos3_pttt_pick"] = value
-                        selected = value
+        with st.container(key="pos3-pttt-radio"):
+            pttt_chon = st.radio(
+            "PTTT",
+            ["Tiền mặt", "Chuyển khoản", "Thẻ"],
+            key="pos3_pttt_radio",
+            horizontal=True,
+            label_visibility="collapsed",
+        )
 
-        pttt_chon = st.session_state.get("pos3_pttt_pick", "tien_mat")
         return {
-            "tien_mat":     khach_can_tra if pttt_chon == "tien_mat" else 0,
-            "chuyen_khoan": khach_can_tra if pttt_chon == "chuyen_khoan" else 0,
-            "the":          khach_can_tra if pttt_chon == "the" else 0,
+            "tien_mat":     khach_can_tra if pttt_chon == "Tiền mặt" else 0,
+            "chuyen_khoan": khach_can_tra if pttt_chon == "Chuyển khoản" else 0,
+            "the":          khach_can_tra if pttt_chon == "Thẻ" else 0,
         }
 
     st.markdown("<div style='font-size:0.82rem;color:#666;margin:4px 0;'>"
