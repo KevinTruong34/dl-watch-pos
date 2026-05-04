@@ -205,6 +205,10 @@ def _calc_tam_tinh(cart: list[dict]) -> int:
     return sum(_calc_thanh_tien(line) for line in cart)
 
 
+def _calc_giam_gia_dong(cart: list[dict]) -> int:
+    return sum(int(line.get("giam_gia_dong", 0) or 0) for line in cart)
+
+
 def _clear_cart():
     st.session_state.pop(CART_KEY, None)
 
@@ -516,7 +520,7 @@ def _render_cart_line(line: dict):
     with col_info:
         suffix = f"  ·  giảm {fmt_vnd(line['giam_gia_dong'])}" if has_giam else ""
         if st.button(
-            f"**{line['ten_hang']}**  —  {fmt_vnd(thanh_tien)}\n\n"
+            f"**{line['ten_hang']}**\n\n"
             f"Mã: {line['ma_hang']}\n\n"
             f"SL: {line['so_luong']} × {fmt_vnd(line['don_gia'])}{suffix}",
             key=f"pos_edit_{line['ma_hang']}",
@@ -539,8 +543,9 @@ def _render_cart_line(line: dict):
 def _render_footer():
     cart = _get_cart()
     tam_tinh = _calc_tam_tinh(cart)
+    giam_gia_dong = _calc_giam_gia_dong(cart)
     n_items = len(cart)
-    giam_gia = 0  # placeholder — giảm giá đơn áp dụng ở màn thanh toán
+    giam_gia = giam_gia_dong
     tong_cong = max(0, tam_tinh - giam_gia)
 
     st.markdown(
@@ -584,7 +589,7 @@ def _render_footer():
                 f"<span style='font-size:1rem;font-weight:700;color:#1a1a2e;'>"
                 f"Tổng cộng</span>"
                 f"<span style='font-size:1.4rem;font-weight:800;color:#e63946;'>"
-                f"{fmt_vnd(tong_cong)}</span>"
+                f"{fmt_vnd(tam_tinh)}</span>"
                 f"</div>",
                 unsafe_allow_html=True,
             )
