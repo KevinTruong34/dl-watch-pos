@@ -116,9 +116,16 @@ _CART_ROW_CSS = """
     padding-top: 1rem !important;
 }
 .st-key-pos-search-card,
-.st-key-pos-cart-card,
 .st-key-pos-footer-card {
     margin-top: 6px !important;
+}
+
+/* Stretch cart background closer to blocks above/below */
+.st-key-pos-cart-card {
+    margin-top: -8px !important;
+    margin-bottom: -8px !important;
+    padding-top: 10px !important;
+    padding-bottom: 12px !important;
 }
 
 /* Footer breakdown card */
@@ -130,23 +137,11 @@ _CART_ROW_CSS = """
     margin-bottom: 10px;
 }
 
-/* Floating crown FAB (decorative) */
-.pos-fab-crown {
-    position: fixed;
-    right: 16px;
-    bottom: calc(16px + env(safe-area-inset-bottom));
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    background: #e63946;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #fff;
-    font-size: 1.3rem;
-    box-shadow: 0 4px 12px rgba(230,57,70,0.35);
-    z-index: 25;
-    pointer-events: none;
+/* Hide Streamlit floating helper/menu bubble on mobile */
+div[data-testid="stFloatingActionButton"],
+button[title="Manage app"],
+button[aria-label="Manage app"] {
+    display: none !important;
 }
 </style>
 """
@@ -440,9 +435,13 @@ def _render_search_result_card(hh: dict):
         return
 
     if is_dich_vu:
-        info_line = f"🛠 Dịch vụ · {hh['ten_hang']} · {hh['ma_hang']} · {fmt_vnd(hh['gia_ban'])}"
+        info_line = (
+            f"🛠 Dịch vụ · **{hh['ten_hang']}** · **{hh['ma_hang']}** · {fmt_vnd(hh['gia_ban'])}"
+        )
     else:
-        info_line = f"📦 Hàng hóa · {hh['ten_hang']} · {hh['ma_hang']} · {fmt_vnd(hh['gia_ban'])}"
+        info_line = (
+            f"📦 Hàng hóa · **{hh['ten_hang']}** · **{hh['ma_hang']}** · {fmt_vnd(hh['gia_ban'])}"
+        )
 
     btn_label = info_line
     if st.button(
@@ -594,11 +593,6 @@ def _render_footer():
         ):
             st.session_state["pos_step"] = "thanh_toan"
             st.rerun()
-
-    st.markdown(
-        "<div class='pos-fab-crown'>♛</div>",
-        unsafe_allow_html=True,
-    )
 
 
 # ════════════════════════════════════════════════════════════════
