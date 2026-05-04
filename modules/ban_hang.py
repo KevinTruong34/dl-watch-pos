@@ -632,16 +632,32 @@ def _render_man_thanh_toan():
         )
 
     st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
+    st.markdown(
+        """<style>
+        [class*="st-key-pos3-section-"] {
+            background: #fff;
+            border: 1px solid #ececec;
+            border-radius: 12px;
+            padding: 10px 12px 12px;
+            margin: 8px 0;
+        }
+        </style>""",
+        unsafe_allow_html=True,
+    )
 
     tam_tinh = _calc_tam_tinh(cart)
 
-    _render_section_khach_hang()
-    _render_section_tom_tat(cart, tam_tinh)
-    giam_gia_don = _render_section_giam_gia(tam_tinh)
+    with st.container(key="pos3-section-khach-hang"):
+        _render_section_khach_hang()
+    with st.container(key="pos3-section-tom-tat"):
+        _render_section_tom_tat(cart, tam_tinh)
+    with st.container(key="pos3-section-giam-gia"):
+        giam_gia_don = _render_section_giam_gia(tam_tinh)
 
     khach_can_tra = max(0, tam_tinh - giam_gia_don)
 
-    pttt = _render_section_pttt(khach_can_tra)
+    with st.container(key="pos3-section-pttt"):
+        pttt = _render_section_pttt(khach_can_tra)
 
     _render_footer_thanh_toan(cart, giam_gia_don, khach_can_tra, pttt)
 
