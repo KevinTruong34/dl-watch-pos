@@ -827,27 +827,18 @@ def _render_section_pttt(khach_can_tra: int) -> dict:
     if not chia_nhieu:
         st.markdown(
             """<style>
-            .st-key-pos3-pttt-pills [data-testid="stBaseButton-secondary"] {
-                border: 1px solid #e6e6e6 !important;
-                border-radius: 10px !important;
-                min-height: 44px !important;
-                background: #fff !important;
-                font-size: 0.9rem !important;
-            }
-            .st-key-pos3-pttt-pills [data-testid="stBaseButton-secondary"][kind="secondary"] {
-                color: #1a1a2e !important;
-            }
-            .st-key-pos3-pttt-pills div[data-testid="stHorizontalBlock"] {
-                flex-direction: row !important;
-                flex-wrap: nowrap !important;
-                width: 100% !important;
-                gap: 6px !important;
-            }
-            .st-key-pos3-pttt-pills div[data-testid="stHorizontalBlock"] > div {
-                min-width: 0 !important;
+            .st-key-pos3-section-pttt [role="radiogroup"] label p {
+                font-size: 0.8rem !important; /* giảm ~20% so với cỡ gốc */
             }
             </style>""",
             unsafe_allow_html=True,
+        )
+        pttt_chon = st.radio(
+            "Chọn PTTT",
+            ["💵 Tiền mặt", "🏦 Chuyển khoản", "💳 Thẻ"],
+            horizontal=True,
+            key="pos3_pttt_radio",
+            label_visibility="collapsed",
         )
         options = [
             ("tien_mat", "💵 Tiền mặt"),
