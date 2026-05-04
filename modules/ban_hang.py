@@ -828,26 +828,33 @@ def _render_section_pttt(khach_can_tra: int) -> dict:
         st.markdown(
             """<style>
             .st-key-pos3-pttt-radio [role="radiogroup"] {
-                gap: 12px !important;
+                gap: 8px !important;
+                flex-wrap: nowrap !important;
             }
             .st-key-pos3-pttt-radio [role="radiogroup"] > label {
-                margin-right: 8px !important;
+                margin-right: 4px !important;
+            }
+            .st-key-pos3-pttt-radio [role="radiogroup"] p {
+                font-weight: 700 !important;
+                font-size: 0.9rem !important;
+                white-space: nowrap !important;
             }
             </style>""",
             unsafe_allow_html=True,
         )
-        pttt_chon = st.radio(
-            "PTTT",
-            ["💵 Tiền mặt", "🏦 Chuyển khoản", "💳 Thẻ"],
-            key="pos3_pttt_radio",
-            horizontal=True,
-            label_visibility="collapsed",
-        )
+        with st.container(key="pos3-pttt-radio"):
+            pttt_chon = st.radio(
+                "PTTT",
+                ["Tiền mặt", "Chuyển khoản", "Thẻ"],
+                key="pos3_pttt_radio",
+                horizontal=True,
+                label_visibility="collapsed",
+            )
 
         return {
-            "tien_mat":     khach_can_tra if pttt_chon == "💵 Tiền mặt" else 0,
-            "chuyen_khoan": khach_can_tra if pttt_chon == "🏦 Chuyển khoản" else 0,
-            "the":          khach_can_tra if pttt_chon == "💳 Thẻ" else 0,
+            "tien_mat":     khach_can_tra if pttt_chon == "Tiền mặt" else 0,
+            "chuyen_khoan": khach_can_tra if pttt_chon == "Chuyển khoản" else 0,
+            "the":          khach_can_tra if pttt_chon == "Thẻ" else 0,
         }
 
     st.markdown("<div style='font-size:0.82rem;color:#666;margin:4px 0;'>"
