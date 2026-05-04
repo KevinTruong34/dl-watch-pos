@@ -574,7 +574,7 @@ def _render_phieu_card(phieu: dict):
         col_icon, col_body, col_price = st.columns([1, 4, 2])
 
         with col_icon:
-            st.markdown(icon_circle + pill_under, unsafe_allow_html=True)
+            st.markdown(icon_circle, unsafe_allow_html=True)
 
         with col_body:
             sep_html = ""
