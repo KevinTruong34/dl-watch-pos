@@ -109,7 +109,13 @@ _CART_ROW_CSS = """
     border: 1px solid #ffd0d3 !important;
     color: #e63946 !important;
     min-height: 34px !important;
-    padding: 0 10px !important;
+    padding: 0 8px !important;
+    font-size: 0.7em !important;
+    line-height: 1.1 !important;
+}
+.st-key-cart-header-zone [data-testid="stBaseButton-secondary"] p {
+    font-size: 0.7em !important;
+    line-height: 1.1 !important;
 }
 /* Reduce top whitespace and vertical gaps for mobile-like UI */
 .main .block-container {
@@ -122,10 +128,10 @@ _CART_ROW_CSS = """
 
 /* Stretch cart background closer to blocks above/below */
 .st-key-pos-cart-card {
-    margin-top: -8px !important;
-    margin-bottom: -8px !important;
-    padding-top: 10px !important;
-    padding-bottom: 12px !important;
+    margin-top: -18px !important;
+    margin-bottom: -18px !important;
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
 }
 
 /* Footer breakdown card */
