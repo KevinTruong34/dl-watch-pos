@@ -19,15 +19,9 @@ _COOKIE_TOKEN_KEY  = "pos_session_token"
 _COOKIE_BRANCH_KEY = "pos_active_branch"
 
 
-def _get_cookies() -> "stx.CookieManager":
-    """
-    Khởi tạo CookieManager cho session hiện tại.
-    st.session_state là per-browser-session → cookie không leak giữa users.
-    Pass key unique để tránh DuplicateWidgetID nếu app rerender.
-    """
-    if "_cookies_ctrl" not in st.session_state:
-        st.session_state["_cookies_ctrl"] = stx.CookieManager(key="pos_cookie_mgr")
-    return st.session_state["_cookies_ctrl"]
+@st.cache_resource
+def _get_cookies():
+    return stx.CookieManager()
 
 
 def _cookie_expires_at():
