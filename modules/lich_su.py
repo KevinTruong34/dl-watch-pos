@@ -44,7 +44,7 @@ _LICHSU_CSS = """
     background: #fff;
     border: 1px solid #ececec;
     border-radius: 12px;
-    padding: 14px 16px;
+    padding: 14px 16px 22px;
     margin-bottom: 10px;
 }
 
@@ -58,11 +58,6 @@ _LICHSU_CSS = """
 }
 .st-key-ls-search-row div[data-testid="stHorizontalBlock"] > div {
     min-width: 0 !important;
-}
-.st-key-ls-search-row [data-testid="stBaseButton-secondary"] {
-    min-height: 44px !important;
-    border-radius: 10px !important;
-    padding: 0 12px !important;
 }
 
 /* Invoice card frame */
@@ -278,11 +273,17 @@ def _dialog_chi_tiet(inv: dict):
         dg = ct.get("don_gia", 0)
         gg = ct.get("giam_gia_dong", 0)
         tt = ct.get("thanh_tien", 0)
+        ma_hang = (ct.get("ma_hang", "") or "").strip()
+        ma_hang_html = (
+            f"<span style='font-size:0.78rem;color:#666;font-weight:400;'>"
+            f"&nbsp;•&nbsp;{ma_hang}</span>"
+            if ma_hang else ""
+        )
         gg_str = (" · giảm " + fmt_vnd(gg)) if gg > 0 else ""
         items_html += (
             f"<div style='padding:4px 0;border-bottom:1px dashed #e8e8e8;'>"
             f"<div style='font-size:0.86rem;color:#1a1a2e;font-weight:500;'>"
-            f"{ct.get('ten_hang','')}</div>"
+            f"{ct.get('ten_hang','')}{ma_hang_html}</div>"
             f"<div style='display:flex;justify-content:space-between;"
             f"font-size:0.78rem;color:#666;margin-top:2px;'>"
             f"<span>SL {sl} × {fmt_vnd(dg)}{gg_str}</span>"
@@ -470,7 +471,7 @@ def _render_invoice_card(inv: dict):
                   "font-weight:600;padding:1px 6px;border-radius:4px;"
                   "margin-left:6px;letter-spacing:0.5px;'>ĐÃ HỦY</span>"
                   if is_cancelled else "")
-    sdt_html = (f"<span style='color:#888;'>📞 {sdt}</span>"
+    sdt_html = (f"<span style='color:#888;white-space:nowrap;'>📞 {sdt}</span>"
                 if sdt else "")
 
     with st.container(key=container_key):
@@ -486,13 +487,14 @@ def _render_invoice_card(inv: dict):
                 f"<div style='font-size:1.05rem;font-weight:800;color:#e63946;"
                 f"white-space:nowrap;'>{fmt_vnd(tien)}</div>"
                 f"</div>"
-                f"<div style='font-size:0.88rem;color:#1a1a2e;margin-top:2px;'>"
-                f"{ten_kh}</div>"
+                f"<div style='font-size:0.88rem;color:#1a1a2e;margin-top:2px;"
+                f"display:flex;gap:10px;flex-wrap:wrap;align-items:center;'>"
+                f"<span>{ten_kh}</span>{sdt_html}</div>"
                 f"<div style='display:flex;justify-content:space-between;"
                 f"align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap;'>"
                 f"<div style='font-size:0.78rem;color:#888;display:flex;"
                 f"gap:10px;flex-wrap:wrap;'>"
-                f"<span>👤 NV: {nguoi_ban}</span>{sdt_html}</div>"
+                f"<span>👤 NV: {nguoi_ban}</span></div>"
                 f"<div>{pill}</div>"
                 f"</div>",
                 unsafe_allow_html=True
@@ -542,7 +544,7 @@ def _render_pdt_card(pdt: dict):
                   "font-weight:600;padding:1px 6px;border-radius:4px;"
                   "margin-left:6px;letter-spacing:0.5px;'>ĐÃ HỦY</span>"
                   if is_cancelled else "")
-    sdt_html = (f"<span style='color:#888;'>📞 {sdt}</span>"
+    sdt_html = (f"<span style='color:#888;white-space:nowrap;'>📞 {sdt}</span>"
                 if sdt else "")
 
     with st.container(key=container_key):
@@ -554,18 +556,20 @@ def _render_pdt_card(pdt: dict):
                 f"<div style='display:flex;justify-content:space-between;"
                 f"align-items:flex-start;gap:8px;'>"
                 f"<div style='font-family:monospace;font-size:1rem;"
-                f"font-weight:800;color:#1a1a2e;'>↔ {ma_pdt}{cancel_tag}</div>"
+                f"font-weight:800;color:#1a1a2e;'>↔ {ma_pdt}"
+                f"<span style='font-size:0.535em;color:#888;font-weight:600;'>"
+                f" từ {ma_hd_goc}</span>{cancel_tag}</div>"
                 f"<div style='font-size:1.05rem;font-weight:800;color:{tien_color};"
                 f"white-space:nowrap;'>{tien_text}</div>"
                 f"</div>"
-                f"<div style='font-size:0.88rem;color:#1a1a2e;margin-top:2px;'>"
-                f"{ten_kh} · <span style='color:#888;font-family:monospace;'>"
-                f"từ {ma_hd_goc}</span></div>"
+                f"<div style='font-size:0.88rem;color:#1a1a2e;margin-top:2px;"
+                f"display:flex;gap:10px;flex-wrap:wrap;align-items:center;'>"
+                f"<span>{ten_kh}</span>{sdt_html}</div>"
                 f"<div style='display:flex;justify-content:space-between;"
                 f"align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap;'>"
                 f"<div style='font-size:0.78rem;color:#888;display:flex;"
                 f"gap:10px;flex-wrap:wrap;'>"
-                f"<span>👤 NV: {nguoi}</span>{sdt_html}</div>"
+                f"<span>👤 NV: {nguoi}</span></div>"
                 f"<div>{pill}</div>"
                 f"</div>",
                 unsafe_allow_html=True
@@ -620,24 +624,14 @@ def module_lich_su():
             unsafe_allow_html=True
         )
 
-    # ── Ô tìm HĐ theo SĐT/Mã (mọi ngày) + filter button ──
+    # ── Ô tìm HĐ theo SĐT/Mã (mọi ngày) ──
     with st.container(key="ls-search-row"):
-        col_input, col_filter = st.columns([6, 1])
-        with col_input:
-            with st.container(key="numkb-tel-lichsu-find"):
-                find_kw = st.text_input(
-                    "Tìm HĐ theo SĐT hoặc mã",
-                    placeholder="🔎  Tìm theo mã HĐ, SĐT, tên khách...",
-                    key="lichsu_find_kw",
-                    label_visibility="collapsed",
-                )
-        with col_filter:
-            # Decorative filter button — toggles "show cancelled" (currently no-op for parity)
-            st.button(
-                "▽",
-                key="lichsu_filter_btn",
-                use_container_width=True,
-                help="Bộ lọc (sắp ra mắt)",
+        with st.container(key="numkb-tel-lichsu-find"):
+            find_kw = st.text_input(
+                "Tìm HĐ theo SĐT hoặc mã",
+                placeholder="🔎  Tìm theo mã HĐ, SĐT, tên khách...",
+                key="lichsu_find_kw",
+                label_visibility="collapsed",
             )
 
     if find_kw and find_kw.strip():
