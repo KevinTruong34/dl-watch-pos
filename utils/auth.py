@@ -17,6 +17,7 @@ from utils.helpers import now_vn, end_of_today_vn_iso
 
 _URL_TOKEN_KEY  = "t"
 _URL_BRANCH_KEY = "b"
+_URL_USER_KEY   = "u" # Thêm param u để nhớ nhân viên
 
 
 # ════════════════════════════════════════════════════════════════
@@ -162,6 +163,31 @@ def _save_branch_localstorage(branch: str):
     except Exception:
         pass
 
+# Thêm logic xử lý URL params cho ID người dùng
+def _ls_get_user_id() -> str | None:
+    """Đọc user id đã chọn từ URL query param."""
+    try:
+        val = st.query_params.get(_URL_USER_KEY)
+        if val and isinstance(val, str) and val.strip():
+            return val.strip()
+    except Exception:
+        pass
+    return None
+
+def _save_user_localstorage(user_id: str):
+    """Lưu id người dùng đã chọn vào URL query param."""
+    try:
+        st.query_params[_URL_USER_KEY] = str(user_id)
+    except Exception:
+        pass
+
+def _ls_delete_user():
+    """Xóa user khỏi URL query param."""
+    try:
+        if _URL_USER_KEY in st.query_params:
+            del st.query_params[_URL_USER_KEY]
+    except Exception:
+        pass
 
 # ════════════════════════════════════════════════════════════════
 # SESSION STATE HELPERS
@@ -194,13 +220,24 @@ def get_accessible_branches() -> list[str]:
 def do_logout():
     """
     Logout: revoke TẤT CẢ session của NV trên mọi thiết bị.
-    Xóa localStorage + clear state.
+    Xóa localStorage + clear state nhưng giữ lại branch và user.
     """
+    # Lấy thông tin branch và user trước khi clear state
+    current_b = _ls_get_branch()
+    current_u = ""
     user = get_user()
     if user and user.get("id"):
+        current_u = str(user["id"])
         revoke_all_user_sessions(user["id"])
+
     _ls_delete_token()
     st.session_state.clear()
+    
+    # Cập nhật lại URL parameters
+    if current_b:
+        _save_branch_localstorage(current_b)
+    if current_u:
+         _save_user_localstorage(current_u)
 
 
 # ════════════════════════════════════════════════════════════════
@@ -431,6 +468,8 @@ def _show_step_choose_nv():
                 use_container_width=True,
             ):
                 st.session_state["_pending_nv"] = nv
+                # Ghi đè vào URL để lưu thiết bị
+                _save_user_localstorage(nv['id'])
                 _reset_numpad("login")
                 st.rerun()
 
@@ -442,6 +481,8 @@ def _show_step_pin(nv: dict, has_pin: bool):
             st.session_state.pop("_pending_nv", None)
             st.session_state.pop("_setting_pin_step", None)
             st.session_state.pop("_setting_pin_first", None)
+            # Xoá u khỏi url khi bấm back để có thể chọn lại nhân viên khác.
+            _ls_delete_user()
             _reset_numpad("login")
             st.rerun()
 
@@ -585,6 +626,8 @@ def _finalize_login(nv: dict):
 
     st.session_state["user"] = user
     _ls_set_token(token)
+    # Xoá u trên URL khi đã đăng nhập
+    _ls_delete_user()
     # Lưu token vào session_state để do_logout() biết hủy session nào nếu cần
     st.session_state["_session_token"] = token
 
@@ -622,6 +665,18 @@ def run_auth_gate():
     # Chưa login
     if "user" not in st.session_state:
         pending_nv = st.session_state.get("_pending_nv")
+        
+        # Kiểm tra URL param u để bypass bước chọn nhân viên
+        if not pending_nv:
+            ls_user_id = _ls_get_user_id()
+            if ls_user_id:
+                nv_list = load_nhan_vien_active()
+                for nv in nv_list:
+                    if str(nv["id"]) == ls_user_id:
+                        st.session_state["_pending_nv"] = nv
+                        pending_nv = nv
+                        break
+        
         if not pending_nv:
             _show_step_choose_nv()
         else:
