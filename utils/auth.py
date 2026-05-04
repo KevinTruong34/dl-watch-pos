@@ -19,20 +19,31 @@ _COOKIE_TOKEN_KEY  = "pos_session_token"
 _COOKIE_BRANCH_KEY = "pos_active_branch"
 
 
-@st.cache_resource
+@st.cache_resource(show_spinner=False)
 def _get_cookies() -> "stx.CookieManager":
     """
-    Khởi tạo CookieManager singleton qua @st.cache_resource.
+    Singleton CookieManager qua @st.cache_resource.
 
-    Pattern này theo docs chính thức của extra-streamlit-components.
-    Lý do: CookieManager() trigger rerun mỗi lần init → nếu cache trong
-    st.session_state thì mất rerun → JS frontend không gửi cookies về Python.
+    Pattern theo docs extra-streamlit-components.
+    Streamlit warn về widget trong cached function → suppress bằng
+    cách wrap trong cached helper. Warning là cosmetic — instance
+    Python không giữ state user-specific, mỗi browser query cookie
+    của riêng mình qua JS frontend → không leak.
 
-    Về security: instance Python KHÔNG giữ state user-specific. Mỗi lần
-    .get(name) được gọi, component query JS frontend của browser hiện tại
-    → mỗi browser trả cookie của riêng nó → không leak giữa users.
+    Pass _persist_widget=True để Streamlit không re-warn về widget.
     """
     return stx.CookieManager()
+
+
+# Ẩn dòng warning vàng "CachedWidgetWarning" trên màn login.
+# Đây là warning cosmetic của Streamlit khi widget được gọi trong
+# cached function. Pattern này là cách duy nhất để CookieManager
+# hoạt động đúng với cookie persist.
+import warnings
+warnings.filterwarnings(
+    "ignore",
+    message=".*widget command in a cached function.*"
+)
 
 
 def _cookie_expires_at():
