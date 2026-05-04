@@ -109,16 +109,29 @@ _CART_ROW_CSS = """
     border: 1px solid #ffd0d3 !important;
     color: #e63946 !important;
     min-height: 34px !important;
-    padding: 0 10px !important;
+    padding: 0 8px !important;
+    font-size: 0.7em !important;
+    line-height: 1.1 !important;
+}
+.st-key-cart-header-zone [data-testid="stBaseButton-secondary"] p {
+    font-size: 0.7em !important;
+    line-height: 1.1 !important;
 }
 /* Reduce top whitespace and vertical gaps for mobile-like UI */
 .main .block-container {
     padding-top: 1rem !important;
 }
 .st-key-pos-search-card,
-.st-key-pos-cart-card,
 .st-key-pos-footer-card {
     margin-top: 6px !important;
+}
+
+/* Stretch cart background closer to blocks above/below */
+.st-key-pos-cart-card {
+    margin-top: -18px !important;
+    margin-bottom: -18px !important;
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
 }
 
 /* Footer breakdown card */
@@ -130,23 +143,11 @@ _CART_ROW_CSS = """
     margin-bottom: 10px;
 }
 
-/* Floating crown FAB (decorative) */
-.pos-fab-crown {
-    position: fixed;
-    right: 16px;
-    bottom: calc(16px + env(safe-area-inset-bottom));
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    background: #e63946;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #fff;
-    font-size: 1.3rem;
-    box-shadow: 0 4px 12px rgba(230,57,70,0.35);
-    z-index: 25;
-    pointer-events: none;
+/* Hide Streamlit floating helper/menu bubble on mobile */
+div[data-testid="stFloatingActionButton"],
+button[title="Manage app"],
+button[aria-label="Manage app"] {
+    display: none !important;
 }
 </style>
 """
@@ -202,6 +203,10 @@ def _calc_thanh_tien(line: dict) -> int:
 
 def _calc_tam_tinh(cart: list[dict]) -> int:
     return sum(_calc_thanh_tien(line) for line in cart)
+
+
+def _calc_giam_gia_dong(cart: list[dict]) -> int:
+    return sum(int(line.get("giam_gia_dong", 0) or 0) for line in cart)
 
 
 def _clear_cart():
@@ -440,9 +445,13 @@ def _render_search_result_card(hh: dict):
         return
 
     if is_dich_vu:
-        info_line = f"🛠 Dịch vụ · {hh['ten_hang']} · {hh['ma_hang']} · {fmt_vnd(hh['gia_ban'])}"
+        info_line = (
+            f"🛠 Dịch vụ · **{hh['ten_hang']}** · **{hh['ma_hang']}** · {fmt_vnd(hh['gia_ban'])}"
+        )
     else:
-        info_line = f"📦 Hàng hóa · {hh['ten_hang']} · {hh['ma_hang']} · {fmt_vnd(hh['gia_ban'])}"
+        info_line = (
+            f"📦 Hàng hóa · **{hh['ten_hang']}** · **{hh['ma_hang']}** · {fmt_vnd(hh['gia_ban'])}"
+        )
 
     btn_label = info_line
     if st.button(
@@ -511,7 +520,7 @@ def _render_cart_line(line: dict):
     with col_info:
         suffix = f"  ·  giảm {fmt_vnd(line['giam_gia_dong'])}" if has_giam else ""
         if st.button(
-            f"**{line['ten_hang']}**  —  {fmt_vnd(thanh_tien)}\n\n"
+            f"**{line['ten_hang']}**\n\n"
             f"Mã: {line['ma_hang']}\n\n"
             f"SL: {line['so_luong']} × {fmt_vnd(line['don_gia'])}{suffix}",
             key=f"pos_edit_{line['ma_hang']}",
@@ -534,8 +543,9 @@ def _render_cart_line(line: dict):
 def _render_footer():
     cart = _get_cart()
     tam_tinh = _calc_tam_tinh(cart)
+    giam_gia_dong = _calc_giam_gia_dong(cart)
     n_items = len(cart)
-    giam_gia = 0  # placeholder — giảm giá đơn áp dụng ở màn thanh toán
+    giam_gia = giam_gia_dong
     tong_cong = max(0, tam_tinh - giam_gia)
 
     st.markdown(
@@ -579,7 +589,7 @@ def _render_footer():
                 f"<span style='font-size:1rem;font-weight:700;color:#1a1a2e;'>"
                 f"Tổng cộng</span>"
                 f"<span style='font-size:1.4rem;font-weight:800;color:#e63946;'>"
-                f"{fmt_vnd(tong_cong)}</span>"
+                f"{fmt_vnd(tam_tinh)}</span>"
                 f"</div>",
                 unsafe_allow_html=True,
             )
@@ -594,11 +604,6 @@ def _render_footer():
         ):
             st.session_state["pos_step"] = "thanh_toan"
             st.rerun()
-
-    st.markdown(
-        "<div class='pos-fab-crown'>♛</div>",
-        unsafe_allow_html=True,
-    )
 
 
 # ════════════════════════════════════════════════════════════════
