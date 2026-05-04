@@ -8,53 +8,15 @@ from datetime import datetime
 from utils.db import supabase, load_nhan_vien_active, load_pin, set_pin
 from utils.helpers import now_vn, end_of_today_vn_iso
 
-# extra-streamlit-components — cookie manager có expires_at thật
-# (streamlit-cookies-controller không expose expires → cookie là session-only).
-# QUAN TRỌNG: KHÔNG khởi tạo CookieManager ở module-level vì sẽ bị
-# share singleton giữa các users → leak session.
-# Cache instance trong st.session_state (per-browser-session) qua _get_cookies().
-import extra_streamlit_components as stx
+# URL query params — lưu token + branch trong URL.
+# Đây là cách an toàn + persist được, không cần external library.
+# Lý do không dùng cookie: trên Streamlit Cloud share environment,
+# cả 2 pattern (session_state cache, @st.cache_resource) đều fail —
+# hoặc mất persist hoặc leak session giữa users.
+# URL nội bộ shop, không public → an toàn về thực tế.
 
-_COOKIE_TOKEN_KEY  = "pos_session_token"
-_COOKIE_BRANCH_KEY = "pos_active_branch"
-
-
-@st.cache_resource(show_spinner=False)
-def _get_cookies() -> "stx.CookieManager":
-    """
-    Singleton CookieManager qua @st.cache_resource.
-
-    Pattern theo docs extra-streamlit-components.
-    Streamlit warn về widget trong cached function → suppress bằng
-    cách wrap trong cached helper. Warning là cosmetic — instance
-    Python không giữ state user-specific, mỗi browser query cookie
-    của riêng mình qua JS frontend → không leak.
-
-    Pass _persist_widget=True để Streamlit không re-warn về widget.
-    """
-    return stx.CookieManager()
-
-
-# Ẩn dòng warning vàng "CachedWidgetWarning" trên màn login.
-# Đây là warning cosmetic của Streamlit khi widget được gọi trong
-# cached function. Pattern này là cách duy nhất để CookieManager
-# hoạt động đúng với cookie persist.
-import warnings
-warnings.filterwarnings(
-    "ignore",
-    message=".*widget command in a cached function.*"
-)
-
-
-def _cookie_expires_at():
-    """
-    Datetime hết hạn cookie = end of day VN (đồng bộ với token expire trong DB).
-    Token DB hết cuối ngày → cookie cũng nên hết cùng lúc cho consistent.
-    """
-    from datetime import datetime as _dt
-    from zoneinfo import ZoneInfo as _Z
-    today = _dt.now(_Z("Asia/Ho_Chi_Minh"))
-    return today.replace(hour=23, minute=59, second=59, microsecond=0)
+_URL_TOKEN_KEY  = "t"
+_URL_BRANCH_KEY = "b"
 
 
 # ════════════════════════════════════════════════════════════════
@@ -155,9 +117,9 @@ def revoke_all_user_sessions(nv_id: int) -> int:
 # ════════════════════════════════════════════════════════════════
 
 def _ls_get_token() -> str | None:
-    """Đọc token từ cookie. Return None nếu chưa có hoặc rỗng."""
+    """Đọc token từ URL query param. Return None nếu chưa có hoặc rỗng."""
     try:
-        val = _get_cookies().get(_COOKIE_TOKEN_KEY)
+        val = st.query_params.get(_URL_TOKEN_KEY)
         if val and isinstance(val, str) and val.strip():
             return val.strip()
     except Exception:
@@ -166,25 +128,26 @@ def _ls_get_token() -> str | None:
 
 
 def _ls_set_token(token: str):
-    """Ghi token vào cookie với expires_at = cuối ngày VN."""
+    """Ghi token vào URL query param."""
     try:
-        _get_cookies().set(_COOKIE_TOKEN_KEY, token,
-                           expires_at=_cookie_expires_at())
+        st.query_params[_URL_TOKEN_KEY] = token
     except Exception:
         pass
 
 
 def _ls_delete_token():
-    """Xóa token khỏi cookie."""
+    """Xóa token khỏi URL query param."""
     try:
-        _get_cookies().delete(_COOKIE_TOKEN_KEY)
+        if _URL_TOKEN_KEY in st.query_params:
+            del st.query_params[_URL_TOKEN_KEY]
     except Exception:
         pass
 
 
 def _ls_get_branch() -> str | None:
+    """Đọc branch đã chọn từ URL query param."""
     try:
-        val = _get_cookies().get(_COOKIE_BRANCH_KEY)
+        val = st.query_params.get(_URL_BRANCH_KEY)
         if val and isinstance(val, str) and val.strip():
             return val.strip()
     except Exception:
@@ -193,10 +156,9 @@ def _ls_get_branch() -> str | None:
 
 
 def _save_branch_localstorage(branch: str):
-    """Lưu chi nhánh đã chọn vào cookie với expires_at = cuối ngày."""
+    """Lưu chi nhánh đã chọn vào URL query param."""
     try:
-        _get_cookies().set(_COOKIE_BRANCH_KEY, branch,
-                           expires_at=_cookie_expires_at())
+        st.query_params[_URL_BRANCH_KEY] = branch
     except Exception:
         pass
 
