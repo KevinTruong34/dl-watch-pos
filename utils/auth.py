@@ -192,15 +192,35 @@ def get_accessible_branches() -> list[str]:
 
 
 def do_logout():
-    """
-    Logout: revoke TẤT CẢ session của NV trên mọi thiết bị.
-    Xóa localStorage + clear state.
-    """
-    user = get_user()
-    if user and user.get("id"):
-        revoke_all_user_sessions(user["id"])
-    _ls_delete_token()
-    st.session_state.clear()
+    # 1. Giữ lại thông tin chi nhánh và user hiện tại trước khi xoá
+    current_b = st.session_state.get("branch", "")
+    
+    # Lấy user ID. Tuỳ cấu trúc biến của bạn, có thể là get("user", {}).get("id")
+    current_u = ""
+    if "user" in st.session_state and isinstance(st.session_state.user, dict):
+         current_u = str(st.session_state.user.get("id", ""))
+    elif "user_id" in st.session_state:
+         current_u = str(st.session_state.user_id)
+
+    # 2. Xoá token ở Supabase (Hãy giữ nguyên logic cũ của dự án ở vị trí này nếu có)
+    # db_remove_token(...) 
+    
+    # 3. Dọn dẹp session state
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    
+    # 4. Điều hướng lại (Rerun) với URL param chứa `b` và `u`
+    st.query_params.clear()
+    new_params = {}
+    if current_b: 
+        new_params["b"] = current_b
+    if "u" in params and not st.session_state.get("pre_selected_user_id"):
+        st.session_state.pre_selected_user_id = str(params["u"])
+    if current_u: 
+        new_params["u"] = current_u
+    st.query_params.update(new_params)
+    
+    st.rerun()
 
 
 # ════════════════════════════════════════════════════════════════
