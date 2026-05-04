@@ -8,18 +8,26 @@ from datetime import datetime
 from utils.db import supabase, load_nhan_vien_active, load_pin, set_pin
 from utils.helpers import now_vn, end_of_today_vn_iso
 
-# streamlit-local-storage để lưu token vào browser localStorage
-from streamlit_local_storage import LocalStorage
+# streamlit-cookies-controller — lưu token vào browser cookie
+# QUAN TRỌNG: KHÔNG khởi tạo CookieController ở module-level vì sẽ bị
+# share singleton giữa các users → leak session.
+# Mỗi function tự khởi tạo controller qua _get_cookies() (per-session).
+from streamlit_cookies_controller import CookieController
+
+_COOKIE_TOKEN_KEY  = "pos_session_token"
+_COOKIE_BRANCH_KEY = "pos_active_branch"
 
 
-# ════════════════════════════════════════════════════════════════
-# LOCALSTORAGE INSTANCE — singleton
-# ════════════════════════════════════════════════════════════════
-
-# Key prefix: "pos_" để không conflict với app khác trên cùng domain
-_LS = LocalStorage()
-_LS_TOKEN_KEY  = "pos_session_token"
-_LS_BRANCH_KEY = "pos_active_branch"
+def _get_cookies() -> CookieController:
+    """
+    Khởi tạo CookieController cho session hiện tại.
+    Streamlit sẽ tự cache trong st.session_state với key "_cookies_ctrl"
+    để tránh re-render flicker, nhưng vẫn isolate per browser session
+    (vì st.session_state là per-session).
+    """
+    if "_cookies_ctrl" not in st.session_state:
+        st.session_state["_cookies_ctrl"] = CookieController(key="pos_cookies")
+    return st.session_state["_cookies_ctrl"]
 
 
 # ════════════════════════════════════════════════════════════════
@@ -120,9 +128,9 @@ def revoke_all_user_sessions(nv_id: int) -> int:
 # ════════════════════════════════════════════════════════════════
 
 def _ls_get_token() -> str | None:
-    """Đọc token từ localStorage. Return None nếu chưa có hoặc rỗng."""
+    """Đọc token từ cookie. Return None nếu chưa có hoặc rỗng."""
     try:
-        val = _LS.getItem(_LS_TOKEN_KEY)
+        val = _get_cookies().get(_COOKIE_TOKEN_KEY)
         if val and isinstance(val, str) and val.strip():
             return val.strip()
     except Exception:
@@ -131,24 +139,24 @@ def _ls_get_token() -> str | None:
 
 
 def _ls_set_token(token: str):
-    """Ghi token vào localStorage."""
+    """Ghi token vào cookie."""
     try:
-        _LS.setItem(_LS_TOKEN_KEY, token, key="ls_set_token")
+        _get_cookies().set(_COOKIE_TOKEN_KEY, token)
     except Exception:
         pass
 
 
 def _ls_delete_token():
-    """Xóa token khỏi localStorage."""
+    """Xóa token khỏi cookie."""
     try:
-        _LS.deleteItem(_LS_TOKEN_KEY, key="ls_del_token")
+        _get_cookies().remove(_COOKIE_TOKEN_KEY)
     except Exception:
         pass
 
 
 def _ls_get_branch() -> str | None:
     try:
-        val = _LS.getItem(_LS_BRANCH_KEY)
+        val = _get_cookies().get(_COOKIE_BRANCH_KEY)
         if val and isinstance(val, str) and val.strip():
             return val.strip()
     except Exception:
@@ -157,9 +165,9 @@ def _ls_get_branch() -> str | None:
 
 
 def _save_branch_localstorage(branch: str):
-    """Lưu chi nhánh đã chọn vào localStorage để nhớ cho lần sau."""
+    """Lưu chi nhánh đã chọn vào cookie để nhớ cho lần sau."""
     try:
-        _LS.setItem(_LS_BRANCH_KEY, branch, key="ls_set_branch")
+        _get_cookies().set(_COOKIE_BRANCH_KEY, branch)
     except Exception:
         pass
 
