@@ -825,17 +825,47 @@ def _render_section_pttt(khach_can_tra: int) -> dict:
     )
 
     if not chia_nhieu:
-        pttt_chon = st.radio(
-            "Chọn PTTT",
-            ["💵 Tiền mặt", "🏦 Chuyển khoản", "💳 Thẻ"],
-            horizontal=True,
-            key="pos3_pttt_radio",
-            label_visibility="collapsed",
+        st.markdown(
+            """<style>
+            .st-key-pos3-pttt-pills [data-testid="stBaseButton-secondary"] {
+                border: 1px solid #e6e6e6 !important;
+                border-radius: 10px !important;
+                min-height: 44px !important;
+                background: #fff !important;
+                font-size: 0.95rem !important;
+            }
+            .st-key-pos3-pttt-pills [data-testid="stBaseButton-secondary"][kind="secondary"] {
+                color: #1a1a2e !important;
+            }
+            </style>""",
+            unsafe_allow_html=True,
         )
+        options = [
+            ("tien_mat", "💵 Tiền mặt"),
+            ("chuyen_khoan", "🏦 Chuyển khoản"),
+            ("the", "💳 Thẻ"),
+        ]
+        selected = st.session_state.get("pos3_pttt_pick", "tien_mat")
+        with st.container(key="pos3-pttt-pills"):
+            c1, c2, c3 = st.columns(3)
+            for col, (value, label) in zip((c1, c2, c3), options):
+                with col:
+                    is_active = selected == value
+                    btn_label = f"✓ {label}" if is_active else label
+                    if st.button(
+                        btn_label,
+                        key=f"pos3_pttt_btn_{value}",
+                        use_container_width=True,
+                        type="primary" if is_active else "secondary",
+                    ):
+                        st.session_state["pos3_pttt_pick"] = value
+                        selected = value
+
+        pttt_chon = st.session_state.get("pos3_pttt_pick", "tien_mat")
         return {
-            "tien_mat":     khach_can_tra if pttt_chon == "💵 Tiền mặt" else 0,
-            "chuyen_khoan": khach_can_tra if pttt_chon == "🏦 Chuyển khoản" else 0,
-            "the":          khach_can_tra if pttt_chon == "💳 Thẻ" else 0,
+            "tien_mat":     khach_can_tra if pttt_chon == "tien_mat" else 0,
+            "chuyen_khoan": khach_can_tra if pttt_chon == "chuyen_khoan" else 0,
+            "the":          khach_can_tra if pttt_chon == "the" else 0,
         }
 
     st.markdown("<div style='font-size:0.82rem;color:#666;margin:4px 0;'>"
@@ -999,7 +1029,7 @@ def _clear_step3_state():
         "pos3_kh_data", "pos3_last_lookup_sdt", "pos3_lookup_result",
         "pos3_khach_le", "pos3_sdt_input", "pos3_ten_moi",
         "pos3_gg_mode", "pos3_gg_tien", "pos3_gg_pct",
-        "pos3_chia_nhieu", "pos3_pttt_radio",
+        "pos3_chia_nhieu", "pos3_pttt_radio", "pos3_pttt_pick",
         "pos3_tm", "pos3_ck", "pos3_the",
     ]
     for k in keys:
