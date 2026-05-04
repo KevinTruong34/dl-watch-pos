@@ -8,26 +8,37 @@ from datetime import datetime
 from utils.db import supabase, load_nhan_vien_active, load_pin, set_pin
 from utils.helpers import now_vn, end_of_today_vn_iso
 
-# streamlit-cookies-controller — lưu token vào browser cookie
-# QUAN TRỌNG: KHÔNG khởi tạo CookieController ở module-level vì sẽ bị
+# extra-streamlit-components — cookie manager có expires_at thật
+# (streamlit-cookies-controller không expose expires → cookie là session-only).
+# QUAN TRỌNG: KHÔNG khởi tạo CookieManager ở module-level vì sẽ bị
 # share singleton giữa các users → leak session.
-# Mỗi function tự khởi tạo controller qua _get_cookies() (per-session).
-from streamlit_cookies_controller import CookieController
+# Cache instance trong st.session_state (per-browser-session) qua _get_cookies().
+import extra_streamlit_components as stx
 
 _COOKIE_TOKEN_KEY  = "pos_session_token"
 _COOKIE_BRANCH_KEY = "pos_active_branch"
 
 
-def _get_cookies() -> CookieController:
+def _get_cookies() -> "stx.CookieManager":
     """
-    Khởi tạo CookieController cho session hiện tại.
-    Streamlit sẽ tự cache trong st.session_state với key "_cookies_ctrl"
-    để tránh re-render flicker, nhưng vẫn isolate per browser session
-    (vì st.session_state là per-session).
+    Khởi tạo CookieManager cho session hiện tại.
+    st.session_state là per-browser-session → cookie không leak giữa users.
+    Pass key unique để tránh DuplicateWidgetID nếu app rerender.
     """
     if "_cookies_ctrl" not in st.session_state:
-        st.session_state["_cookies_ctrl"] = CookieController(key="pos_cookies")
+        st.session_state["_cookies_ctrl"] = stx.CookieManager(key="pos_cookie_mgr")
     return st.session_state["_cookies_ctrl"]
+
+
+def _cookie_expires_at():
+    """
+    Datetime hết hạn cookie = end of day VN (đồng bộ với token expire trong DB).
+    Token DB hết cuối ngày → cookie cũng nên hết cùng lúc cho consistent.
+    """
+    from datetime import datetime as _dt
+    from zoneinfo import ZoneInfo as _Z
+    today = _dt.now(_Z("Asia/Ho_Chi_Minh"))
+    return today.replace(hour=23, minute=59, second=59, microsecond=0)
 
 
 # ════════════════════════════════════════════════════════════════
@@ -139,9 +150,10 @@ def _ls_get_token() -> str | None:
 
 
 def _ls_set_token(token: str):
-    """Ghi token vào cookie."""
+    """Ghi token vào cookie với expires_at = cuối ngày VN."""
     try:
-        _get_cookies().set(_COOKIE_TOKEN_KEY, token)
+        _get_cookies().set(_COOKIE_TOKEN_KEY, token,
+                           expires_at=_cookie_expires_at())
     except Exception:
         pass
 
@@ -149,7 +161,7 @@ def _ls_set_token(token: str):
 def _ls_delete_token():
     """Xóa token khỏi cookie."""
     try:
-        _get_cookies().remove(_COOKIE_TOKEN_KEY)
+        _get_cookies().delete(_COOKIE_TOKEN_KEY)
     except Exception:
         pass
 
@@ -165,9 +177,10 @@ def _ls_get_branch() -> str | None:
 
 
 def _save_branch_localstorage(branch: str):
-    """Lưu chi nhánh đã chọn vào cookie để nhớ cho lần sau."""
+    """Lưu chi nhánh đã chọn vào cookie với expires_at = cuối ngày."""
     try:
-        _get_cookies().set(_COOKIE_BRANCH_KEY, branch)
+        _get_cookies().set(_COOKIE_BRANCH_KEY, branch,
+                           expires_at=_cookie_expires_at())
     except Exception:
         pass
 
