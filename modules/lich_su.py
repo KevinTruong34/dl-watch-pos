@@ -37,6 +37,23 @@ _VN_MONTHS = {
 }
 
 
+# ════════════════════════════════════════════════════════════════
+# PRINT HELPER
+# ════════════════════════════════════════════════════════════════
+
+def _safe_enqueue_hoa_don(ma_hd: str, nguoi_tao: str):
+    """Wrapper enqueue HĐ — fail silent với toast warning."""
+    try:
+        from utils.print_queue import enqueue_hoa_don
+        pr = enqueue_hoa_don(ma_hd, nguoi_tao)
+        if pr.get("ok"):
+            st.toast("Đã gửi lệnh in", icon="🖨")
+        else:
+            st.toast(f"Lỗi in: {pr.get('error', '')}", icon="⚠️")
+    except Exception as e:
+        st.toast(f"Lỗi in: {e}", icon="⚠️")
+
+
 _LICHSU_CSS = """
 <style>
 /* Header card */
@@ -335,10 +352,11 @@ def _dialog_chi_tiet(inv: dict):
     st.markdown("<div style='margin-top:14px;'></div>", unsafe_allow_html=True)
 
     if is_cancelled:
+        # HĐ đã hủy — vẫn cho in lại để xem nội dung
         if st.button("🖨 In lại", use_container_width=True,
-                     key=f"ls_in_{inv['ma_hd']}",
-                     help="Sẽ kích hoạt khi setup máy in xong"):
-            st.toast("Tính năng in đang chờ setup máy in", icon="🛠")
+                     key=f"ls_in_{inv['ma_hd']}"):
+            user = get_user() or {}
+            _safe_enqueue_hoa_don(inv["ma_hd"], user.get("ho_ten", ""))
         return
 
     col_dt, col_huy = st.columns(2)
@@ -355,9 +373,16 @@ def _dialog_chi_tiet(inv: dict):
                 st.rerun()
         else:
             if st.button("🖨 In lại", use_container_width=True,
-                         key=f"ls_in_{inv['ma_hd']}",
-                         help="Sẽ kích hoạt khi setup máy in xong"):
-                st.toast("Tính năng in đang chờ setup máy in", icon="🛠")
+                         key=f"ls_in_{inv['ma_hd']}"):
+                user = get_user() or {}
+                _safe_enqueue_hoa_don(inv["ma_hd"], user.get("ho_ten", ""))
+
+    # Nút In lại — full-width, hiện thêm nếu là admin (vì đã có nút Hủy + Đổi/Trả)
+    if is_admin():
+        if st.button("🖨 In lại hóa đơn", use_container_width=True,
+                     key=f"ls_in_admin_{inv['ma_hd']}"):
+            user = get_user() or {}
+            _safe_enqueue_hoa_don(inv["ma_hd"], user.get("ho_ten", ""))
 
 
 def _render_pdt_row_in_invoice(pdt: dict):
