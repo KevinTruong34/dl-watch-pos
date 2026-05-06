@@ -12,6 +12,7 @@ from utils.auth import (
     get_accessible_branches, do_logout, _save_branch_localstorage,
     _initials, render_session_warning_banner,
 )
+from modules.cham_cong import show_attendance_dialog
 
 
 # ── Page config ──
@@ -80,29 +81,20 @@ _components.html("""
 # ── Mobile-first CSS ──
 st.markdown("""
 <style>
-/* Force light mode + mobile colors */
-:root {
-    color-scheme: light only !important;
-}
+:root { color-scheme: light only !important; }
 html, body, .stApp, [data-testid="stAppViewContainer"] {
     background: #f5f6f8 !important;
     color: #1a1a2e !important;
     color-scheme: light only !important;
 }
-
-/* Hide Streamlit chrome */
 header, footer, #stDecoration, .stAppDeployButton,
 [data-testid="stHeader"], [data-testid="stToolbar"],
 [data-testid="stElementToolbar"], [data-testid="stDecoration"]
 { display: none !important; }
-
-/* Compact spacing for mobile */
 .block-container {
     padding: 0.6rem 0.8rem 1.2rem 0.8rem !important;
     max-width: 480px !important;
 }
-
-/* Buttons — large for fingers */
 [data-testid="stBaseButton-primary"] {
     background: #e63946 !important;
     border: none !important;
@@ -111,9 +103,6 @@ header, footer, #stDecoration, .stAppDeployButton,
     color: #fff !important;
     min-height: 48px !important;
 }
-[data-testid="stBaseButton-primary"]:hover {
-    background: #c1121f !important;
-}
 [data-testid="stBaseButton-secondary"] {
     border-radius: 10px !important;
     border: 1px solid #ddd !important;
@@ -121,12 +110,6 @@ header, footer, #stDecoration, .stAppDeployButton,
     color: #1a1a2e !important;
     min-height: 48px !important;
 }
-[data-testid="stBaseButton-secondary"]:hover {
-    background: #f9f9f9 !important;
-    border-color: #bbb !important;
-}
-
-/* Input fields */
 [data-testid="stTextInput"] input,
 [data-testid="stNumberInput"] input,
 [data-testid="stTextArea"] textarea {
@@ -136,38 +119,13 @@ header, footer, #stDecoration, .stAppDeployButton,
     border-radius: 8px !important;
     font-size: 1rem !important;
 }
-
-/* Hide form border */
-[data-testid="stForm"] {
-    border: none !important;
-    padding: 0 !important;
-}
-
-/* Disable text selection on buttons (better for mobile taps) */
-[data-testid="stBaseButton-primary"],
-[data-testid="stBaseButton-secondary"] {
-    -webkit-user-select: none;
-    -webkit-touch-callout: none;
-    user-select: none;
-}
-
-/* Alerts */
-[data-testid="stAlert"] {
-    border-radius: 10px !important;
-}
+[data-testid="stForm"] { border: none !important; padding: 0 !important; }
+[data-testid="stAlert"] { border-radius: 10px !important; }
 </style>
 """, unsafe_allow_html=True)
 
 
-# ════════════════════════════════════════════════════════════════
-# AUTH GATE — phải pass mới render app
-# ════════════════════════════════════════════════════════════════
 run_auth_gate()
-
-
-# ════════════════════════════════════════════════════════════════
-# HEADER (sticky-like — render đầu mỗi lần)
-# ════════════════════════════════════════════════════════════════
 
 user = get_user()
 active_cn = get_active_branch()
@@ -176,36 +134,11 @@ initials = _initials(ho_ten)
 cn_short = CN_SHORT.get(active_cn, active_cn[:8])
 accessible = get_accessible_branches()
 
-# CSS scoped → giữ 3 cột header ngang trên mobile
-st.markdown("""
-<style>
-.st-key-header-zone div[data-testid="stHorizontalBlock"] {
-    flex-direction: row !important;
-    flex-wrap: nowrap !important;
-    gap: 8px !important;
-    width: 100% !important;
-}
-.st-key-header-zone div[data-testid="stHorizontalBlock"] > div {
-    min-width: 0 !important;
-}
-@media (max-width: 640px) {
-    .st-key-header-zone div[data-testid="stHorizontalBlock"] {
-        gap: 6px !important;
-    }
-}
-</style>
-""", unsafe_allow_html=True)
-
-# Header bar: Logo | CN | Avatar
 with st.container(key="header-zone"):
     col_logo, col_cn, col_avatar = st.columns([2, 2, 1])
 
     with col_logo:
-        st.markdown(
-            "<div style='font-size:1.05rem;font-weight:700;color:#e63946;"
-            "padding-top:8px;'>🛍️ DL POS</div>",
-            unsafe_allow_html=True
-        )
+        st.markdown("<div style='font-size:1.05rem;font-weight:700;color:#e63946;padding-top:8px;'>🛍️ DL POS</div>", unsafe_allow_html=True)
 
     with col_cn:
         if len(accessible) > 1:
@@ -214,70 +147,36 @@ with st.container(key="header-zone"):
                 for cn in accessible:
                     is_active = (cn == active_cn)
                     lbl = f"✓ {cn}" if is_active else cn
-                    if st.button(
-                        lbl, key=f"sw_cn_{cn}",
-                        use_container_width=True,
-                        type="primary" if is_active else "secondary",
-                        disabled=is_active,
-                    ):
+                    if st.button(lbl, key=f"sw_cn_{cn}", use_container_width=True, type="primary" if is_active else "secondary", disabled=is_active):
                         st.session_state["active_chi_nhanh"] = cn
                         _save_branch_localstorage(cn)
                         st.session_state.pop("pos_cart", None)
                         st.rerun()
         else:
-            st.markdown(
-                f"<div style='font-size:0.88rem;font-weight:600;color:#1a1a2e;"
-                f"padding-top:10px;text-align:center;'>📍 {cn_short}</div>",
-                unsafe_allow_html=True
-            )
+            st.markdown(f"<div style='font-size:0.88rem;font-weight:600;color:#1a1a2e;padding-top:10px;text-align:center;'>📍 {cn_short}</div>", unsafe_allow_html=True)
 
     with col_avatar:
         with st.popover(initials, use_container_width=True):
-            st.markdown(
-                f"<div style='text-align:center;padding:6px 0 4px;'>"
-                f"<div style='font-size:1rem;font-weight:700;'>{ho_ten}</div>"
-                f"<div style='font-size:0.78rem;color:#888;'>{user.get('role','')}</div>"
-                f"</div>",
-                unsafe_allow_html=True
-            )
+            st.markdown(f"<div style='text-align:center;padding:6px 0 4px;'><div style='font-size:1rem;font-weight:700;'>{ho_ten}</div><div style='font-size:0.78rem;color:#888;'>{user.get('role','')}</div></div>", unsafe_allow_html=True)
             st.markdown("---")
+
+            if st.button("⏱️ Chấm công", use_container_width=True):
+                st.session_state["open_attendance_dialog"] = True
+                st.rerun()
+
             if st.button("🚪 Đăng xuất", use_container_width=True, key="logout_btn"):
                 do_logout()
                 st.rerun()
 
 st.markdown("<hr style='margin:6px 0 12px 0;'>", unsafe_allow_html=True)
 
+# trigger dialog
+if st.session_state.pop("open_attendance_dialog", False):
+    show_attendance_dialog()
 
-# ════════════════════════════════════════════════════════════════
-# SESSION WARNING — banner nếu sắp hết hạn (≤30 phút)
-# ════════════════════════════════════════════════════════════════
 render_session_warning_banner()
 
-
-# ════════════════════════════════════════════════════════════════
-# MAIN — Tabs Bán hàng / Lịch sử / Đặt hàng / Thông tin
-# ════════════════════════════════════════════════════════════════
-
-# CSS scoped cho main nav pills — fit 4 tab 1 hàng + chữ đậm + nhỏ
-# Streamlit tự generate class .st-key-<key> trên container của widget
-st.markdown("""
-<style>
-.st-key-main_tab [role="radiogroup"] {
-    gap: 4px !important;
-    flex-wrap: nowrap !important;
-}
-.st-key-main_tab button {
-    padding: 4px 10px !important;
-    min-height: 34px !important;
-}
-.st-key-main_tab button p {
-    font-size: 0.78rem !important;
-    font-weight: 700 !important;
-    white-space: nowrap !important;
-}
-</style>
-""", unsafe_allow_html=True)
-
+# MAIN
 tab_choice = st.pills(
     "main_nav",
     ["🛒 Bán hàng", "📋 Lịch sử", "📦 Đặt hàng", "📢 Thông tin"],
@@ -285,9 +184,8 @@ tab_choice = st.pills(
     label_visibility="collapsed",
     key="main_tab",
 )
-tab_choice = tab_choice or "🛒 Bán hàng"
 
-st.markdown("<div style='margin-top:8px;'></div>", unsafe_allow_html=True)
+tab_choice = tab_choice or "🛒 Bán hàng"
 
 if tab_choice == "🛒 Bán hàng":
     from modules.ban_hang import module_ban_hang
