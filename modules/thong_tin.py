@@ -27,7 +27,7 @@ _TT_CSS = """
     background: #fff;
     border: 1px solid #ececec;
     border-radius: 12px;
-    padding: 14px 16px;
+    padding: 16px 16px 18px;
     margin-bottom: 10px;
 }
 
