@@ -1033,8 +1033,20 @@ def _xu_ly_xac_nhan(cart: list[dict], giam_gia_don: int,
         st.error(f"Lỗi tạo hóa đơn: {result.get('error', 'Lỗi không xác định')}")
         return
 
+    # ── Auto enqueue print ──
+    ma_hd = result.get("ma_hd", "")
+    try:
+        from utils.print_queue import enqueue_hoa_don
+        pr = enqueue_hoa_don(ma_hd, user.get("ho_ten", ""))
+        if pr.get("ok"):
+            st.toast("Đã gửi lệnh in", icon="🖨")
+        else:
+            st.toast("HĐ tạo OK · chưa gửi được lệnh in", icon="⚠️")
+    except Exception:
+        st.toast("HĐ tạo OK · chưa gửi được lệnh in", icon="⚠️")
+
     st.session_state["pos_last_invoice"] = {
-        "ma_hd":         result.get("ma_hd"),
+        "ma_hd":         ma_hd,
         "tien_thua":     int(result.get("tien_thua", 0)),
         "khach_can_tra": int(sum(_calc_thanh_tien(l) for l in cart)) - giam_gia_don,
         "ten_khach":     kh_data.get("ten_kh", ""),
@@ -1129,10 +1141,19 @@ def _render_man_success():
 
     col_in, col_new = st.columns(2)
     with col_in:
-        if st.button("🖨 In hóa đơn", use_container_width=True,
-                     key="pos_success_print",
-                     help="Sẽ kích hoạt khi setup máy in xong"):
-            st.toast("Tính năng in đang chờ setup máy in", icon="🛠")
+        if st.button("🖨 In lại", use_container_width=True,
+                     key="pos_success_print"):
+            try:
+                from utils.print_queue import enqueue_hoa_don
+                from utils.auth import get_user
+                user = get_user() or {}
+                pr = enqueue_hoa_don(inv["ma_hd"], user.get("ho_ten", ""))
+                if pr.get("ok"):
+                    st.toast("Đã gửi lệnh in", icon="🖨")
+                else:
+                    st.toast(f"Lỗi: {pr.get('error', '')}", icon="⚠️")
+            except Exception as e:
+                st.toast(f"Lỗi: {e}", icon="⚠️")
 
     with col_new:
         if st.button("➕ Hóa đơn mới", type="primary",
