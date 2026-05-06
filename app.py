@@ -223,6 +223,7 @@ with st.container(key="header-zone"):
                         st.session_state["active_chi_nhanh"] = cn
                         _save_branch_localstorage(cn)
                         st.session_state.pop("pos_cart", None)
+                        st.session_state.pop("pos_step3_snapshot", None)
                         st.rerun()
         else:
             st.markdown(
