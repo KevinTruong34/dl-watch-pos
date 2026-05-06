@@ -40,6 +40,14 @@ TAIL = "\n\n\n\n"           # 4 line feed cuối để xé giấy
 SEP_THIN  = "-" * LINE_WIDTH
 SEP_THICK = "=" * LINE_WIDTH
 
+# ── Whitelist CN có máy in ──
+# Chỉ các CN trong list này mới enqueue print job. CN ngoài list → skip silent.
+# Khi CN khác setup máy in, thêm tên vào set này (giống chính xác giá trị ở
+# bảng cau_hinh_chi_nhanh).
+PRINT_ENABLED_BRANCHES = {
+    "100 Lê Quý Đôn",
+}
+
 # Địa chỉ ngắn theo CN (in dòng dưới "DL Watch")
 _CN_ADDR_SHORT = {
     "100 Lê Quý Đôn": "100 Lê Quý Đôn, Bà Rịa",
@@ -429,11 +437,15 @@ def enqueue_hoa_don(ma_hd: str, created_by: str = "") -> dict:
     if not hd:
         return {"ok": False, "error": f"Không tìm thấy HĐ {ma_hd}"}
 
+    chi_nhanh = hd.get("chi_nhanh", "")
+    if chi_nhanh not in PRINT_ENABLED_BRANCHES:
+        return {"ok": False, "error": "Chi nhánh chưa có máy in"}
+
     text = _build_text_hoa_don(hd)
     return _insert_print_job(
         doc_type="hoa_don",
         doc_id=ma_hd,
-        chi_nhanh=hd.get("chi_nhanh", ""),
+        chi_nhanh=chi_nhanh,
         text=text,
         data={"ma_hd": ma_hd},
         created_by=created_by,
@@ -448,11 +460,15 @@ def enqueue_phieu_dat(ma_pdh: str, created_by: str = "") -> dict:
     if not p:
         return {"ok": False, "error": f"Không tìm thấy phiếu {ma_pdh}"}
 
+    chi_nhanh = p.get("chi_nhanh", "")
+    if chi_nhanh not in PRINT_ENABLED_BRANCHES:
+        return {"ok": False, "error": "Chi nhánh chưa có máy in"}
+
     text = _build_text_phieu_dat(p)
     return _insert_print_job(
         doc_type="phieu_dat_hang",
         doc_id=ma_pdh,
-        chi_nhanh=p.get("chi_nhanh", ""),
+        chi_nhanh=chi_nhanh,
         text=text,
         data={"ma_pdh": ma_pdh},
         created_by=created_by,
@@ -476,11 +492,15 @@ def enqueue_phieu_doi_tra(ma_pdt: str, created_by: str = "") -> dict:
     except Exception as e:
         return {"ok": False, "error": f"Lỗi load phiếu: {e}"}
 
+    chi_nhanh = pdt.get("chi_nhanh", "")
+    if chi_nhanh not in PRINT_ENABLED_BRANCHES:
+        return {"ok": False, "error": "Chi nhánh chưa có máy in"}
+
     text = _build_text_phieu_doi_tra(pdt)
     return _insert_print_job(
         doc_type="phieu_doi_tra",
         doc_id=ma_pdt,
-        chi_nhanh=pdt.get("chi_nhanh", ""),
+        chi_nhanh=chi_nhanh,
         text=text,
         data={"ma_pdt": ma_pdt},
         created_by=created_by,
