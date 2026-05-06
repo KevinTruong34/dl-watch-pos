@@ -198,6 +198,32 @@ def _reset_form_tao_moi():
         st.session_state.pop(k, None)
 
 
+def _safe_enqueue_phieu_dat(ma_phieu: str, nguoi_tao: str):
+    """Wrapper enqueue phiếu đặt — fail silent với toast warning, không block flow."""
+    try:
+        from utils.print_queue import enqueue_phieu_dat
+        pr = enqueue_phieu_dat(ma_phieu, nguoi_tao)
+        if pr.get("ok"):
+            st.toast("Đã gửi lệnh in phiếu", icon="🖨")
+        else:
+            st.toast("Phiếu OK · chưa gửi được lệnh in", icon="⚠️")
+    except Exception:
+        st.toast("Phiếu OK · chưa gửi được lệnh in", icon="⚠️")
+
+
+def _safe_enqueue_hoa_don(ma_hd: str, nguoi_tao: str):
+    """Wrapper enqueue HĐ — fail silent, không block flow."""
+    try:
+        from utils.print_queue import enqueue_hoa_don
+        pr = enqueue_hoa_don(ma_hd, nguoi_tao)
+        if pr.get("ok"):
+            st.toast("Đã gửi lệnh in HĐ", icon="🖨")
+        else:
+            st.toast("HĐ OK · chưa gửi được lệnh in", icon="⚠️")
+    except Exception:
+        st.toast("HĐ OK · chưa gửi được lệnh in", icon="⚠️")
+
+
 # ════════════════════════════════════════════════════════════════
 # MODAL — Chi tiết phiếu
 # ════════════════════════════════════════════════════════════════
@@ -275,7 +301,7 @@ def _dialog_chi_tiet(phieu: dict):
 
     # Hoàn thành → link HĐ POS
     if tt == "Hoàn thành":
-        ma_hd = phieu.get("ma_hd_pos", "")
+        ma_hd = phieu.get("ma_hd_pos", "") or phieu.get("ma_hd", "")
         st.markdown(
             f"<div style='background:#e8f7ee;border:1px solid #a4d8b4;"
             f"border-radius:8px;padding:8px 12px;margin-top:8px;font-size:0.85rem;'>"
@@ -284,6 +310,20 @@ def _dialog_chi_tiet(phieu: dict):
             f"</div>",
             unsafe_allow_html=True
         )
+        # Nút In lại
+        st.markdown("<div style='margin-top:10px;'></div>", unsafe_allow_html=True)
+        col_in_pdh, col_in_hd = st.columns(2)
+        with col_in_pdh:
+            if st.button("🖨 In lại phiếu đặt", use_container_width=True,
+                         key=f"dh_reprint_pdh_{ma}"):
+                user = get_user() or {}
+                _safe_enqueue_phieu_dat(ma, user.get("ho_ten", ""))
+        with col_in_hd:
+            if ma_hd:
+                if st.button("🖨 In lại HĐ", use_container_width=True,
+                             key=f"dh_reprint_hd_{ma}"):
+                    user = get_user() or {}
+                    _safe_enqueue_hoa_don(ma_hd, user.get("ho_ten", ""))
         return
 
     # Đã hủy
@@ -337,9 +377,14 @@ def _dialog_chi_tiet(phieu: dict):
             st.session_state["dh_confirm_hoan_thanh"] = phieu
             st.rerun()
 
+    # Nút In lại phiếu — luôn có cho phiếu active
+    st.markdown("<div style='margin-top:8px;'></div>", unsafe_allow_html=True)
+    if st.button("🖨 In lại phiếu", use_container_width=True,
+                 key=f"dh_reprint_active_{ma}"):
+        _safe_enqueue_phieu_dat(ma, user.get("ho_ten", ""))
+
     # Nút Hủy — admin only, mọi trạng thái active
     if is_admin():
-        st.markdown("<div style='margin-top:8px;'></div>", unsafe_allow_html=True)
         if st.button("🚫 Hủy phiếu", use_container_width=True,
                      key=f"dh_huy_{ma}"):
             st.session_state["dh_confirm_huy"] = phieu
@@ -458,7 +503,11 @@ def _dialog_hoan_thanh(phieu: dict):
                 from utils.db import load_hang_hoa_pos
                 load_hang_hoa_pos.clear()
                 st.session_state.pop("dh_confirm_hoan_thanh", None)
-                st.toast(f"Hoàn thành {ma} · HĐ {r.get('ma_hd', '')}", icon="✅")
+                ma_hd = r.get("ma_hd", "")
+                st.toast(f"Hoàn thành {ma} · HĐ {ma_hd}", icon="✅")
+                # Auto enqueue print HĐ POS (khách lấy hàng = giống mua bán)
+                if ma_hd:
+                    _safe_enqueue_hoa_don(ma_hd, user.get("ho_ten", ""))
                 st.rerun()
             else:
                 st.error(r.get("error", "Lỗi không xác định"))
@@ -897,6 +946,9 @@ def _render_tab_tao_moi():
             _clear_dat_hang_cache()
             ma_moi = r.get("ma_phieu", "")
             st.toast(f"Đã tạo {ma_moi}", icon="✅")
+            # Auto enqueue print phiếu đặt cho khách giữ
+            if ma_moi:
+                _safe_enqueue_phieu_dat(ma_moi, user.get("ho_ten", ""))
             # Reset form — tăng counter → tất cả widget re-render với key mới
             _reset_form_tao_moi()
             st.rerun()
