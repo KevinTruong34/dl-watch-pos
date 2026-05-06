@@ -214,6 +214,39 @@ def _clear_cart():
 
 
 # ════════════════════════════════════════════════════════════════
+# STEP 3 SNAPSHOT — giữ form thanh toán khi quay lại sửa giỏ
+# ════════════════════════════════════════════════════════════════
+
+# Tất cả keys ở màn thanh toán cần lưu/restore
+_STEP3_KEYS = [
+    "pos3_kh_data", "pos3_last_lookup_sdt", "pos3_lookup_result",
+    "pos3_khach_le", "pos3_sdt_input", "pos3_ten_moi",
+    "pos3_gg_mode", "pos3_gg_tien", "pos3_gg_pct",
+    "pos3_chia_nhieu", "pos3_pttt_radio",
+    "pos3_tm", "pos3_ck", "pos3_the",
+]
+SNAPSHOT_KEY = "pos_step3_snapshot"
+
+
+def _save_step3_snapshot():
+    """Snapshot form thanh toán trước khi NV bấm ← rời màn."""
+    snap = {}
+    for k in _STEP3_KEYS:
+        if k in st.session_state:
+            snap[k] = st.session_state[k]
+    st.session_state[SNAPSHOT_KEY] = snap
+
+
+def _restore_step3_snapshot():
+    """Khôi phục form thanh toán khi NV quay lại."""
+    snap = st.session_state.pop(SNAPSHOT_KEY, None)
+    if not snap:
+        return
+    for k, v in snap.items():
+        st.session_state[k] = v
+
+
+# ════════════════════════════════════════════════════════════════
 # SEARCH LOGIC
 # ════════════════════════════════════════════════════════════════
 
@@ -602,6 +635,8 @@ def _render_footer():
             disabled=not can_continue,
             key="pos_continue_btn",
         ):
+            # Restore form thanh toán nếu NV đã từng vào và quay ra
+            _restore_step3_snapshot()
             st.session_state["pos_step"] = "thanh_toan"
             st.rerun()
 
@@ -622,6 +657,8 @@ def _render_man_thanh_toan():
         if st.button("←", key="pos3_back",
                      use_container_width=True,
                      help="Quay lại bán hàng"):
+            # Snapshot toàn bộ form thanh toán trước khi rời màn
+            _save_step3_snapshot()
             st.session_state.pop("pos_step", None)
             st.rerun()
     with col_title:
@@ -1023,6 +1060,8 @@ def _clear_step3_state():
     ]
     for k in keys:
         st.session_state.pop(k, None)
+    # Cleanup snapshot luôn — đảm bảo HĐ mới không bị nạp data cũ
+    st.session_state.pop(SNAPSHOT_KEY, None)
 
 
 # ════════════════════════════════════════════════════════════════
