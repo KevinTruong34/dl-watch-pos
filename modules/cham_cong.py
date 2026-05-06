@@ -1,5 +1,7 @@
 import streamlit as st
+import pandas as pd
 from datetime import date
+from zoneinfo import ZoneInfo
 
 from utils.auth import get_user, get_active_branch
 from utils.helpers import now_vn
@@ -9,6 +11,14 @@ from utils.attendance import (
     record_check_in,
     record_check_out,
 )
+
+TZ = ZoneInfo("Asia/Ho_Chi_Minh")
+
+def _fmt(dt):
+    try:
+        return dt.astimezone(TZ).strftime("%H:%M")
+    except Exception:
+        return "--:--"
 
 # Compatibility for Streamlit dialog
 if hasattr(st, "dialog"):
@@ -50,7 +60,7 @@ def show_attendance_dialog():
         end = row.get("scheduled_end_at")
         schedule_id = int(row.get("id") or 0)
 
-        st.markdown(f"### Ca {shift_no} ({start.strftime('%H:%M')} - {end.strftime('%H:%M')})")
+        st.markdown(f"### Ca {shift_no} ({_fmt(start)} - {_fmt(end)})")
 
         session = None
         if not sessions.empty:
