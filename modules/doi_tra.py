@@ -32,6 +32,23 @@ _TZ_VN = ZoneInfo("Asia/Ho_Chi_Minh")
 
 
 # ════════════════════════════════════════════════════════════════
+# PRINT HELPER
+# ════════════════════════════════════════════════════════════════
+
+def _safe_enqueue_phieu_doi_tra(ma_pdt: str, nguoi_tao: str):
+    """Wrapper enqueue phiếu đổi/trả — fail silent với toast warning."""
+    try:
+        from utils.print_queue import enqueue_phieu_doi_tra
+        pr = enqueue_phieu_doi_tra(ma_pdt, nguoi_tao)
+        if pr.get("ok"):
+            st.toast("Đã gửi lệnh in", icon="🖨")
+        else:
+            st.toast("Phiếu OK · chưa gửi được lệnh in", icon="⚠️")
+    except Exception:
+        st.toast("Phiếu OK · chưa gửi được lệnh in", icon="⚠️")
+
+
+# ════════════════════════════════════════════════════════════════
 # STATE HELPERS
 # ════════════════════════════════════════════════════════════════
 
@@ -508,6 +525,10 @@ def _xu_ly_xac_nhan(hd_goc: dict, items_tra: list[dict],
     ma_pdt = result.get("ma_pdt", "")
     st.toast(f"Đã tạo {ma_pdt}", icon="✅")
 
+    # Auto enqueue print
+    if ma_pdt:
+        _safe_enqueue_phieu_doi_tra(ma_pdt, user.get("ho_ten", ""))
+
     _close_doi_tra()
     st.rerun()
 
@@ -746,6 +767,13 @@ def dialog_chi_tiet_pdt(pdt: dict):
     )
 
     st.markdown("<div style='margin-top:14px;'></div>", unsafe_allow_html=True)
+
+    # Nút In lại — luôn có (kể cả phiếu đã hủy để in cho admin xem lại nếu cần)
+    if not is_cancelled:
+        if st.button("🖨 In lại", use_container_width=True,
+                     key=f"pdt_reprint_{pdt['ma_pdt']}"):
+            user = get_user() or {}
+            _safe_enqueue_phieu_doi_tra(pdt["ma_pdt"], user.get("ho_ten", ""))
 
     if is_admin() and not is_cancelled:
         if st.button("🚫 Hủy phiếu đổi/trả", use_container_width=True,
