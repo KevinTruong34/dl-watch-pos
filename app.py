@@ -155,6 +155,21 @@ header, footer, #stDecoration, .stAppDeployButton,
 [data-testid="stAlert"] {
     border-radius: 10px !important;
 }
+
+/* Main nav pills — fit 4 tabs in 1 row on mobile */
+[data-testid="stPills"] [role="radiogroup"] {
+    gap: 4px !important;
+    flex-wrap: nowrap !important;
+}
+[data-testid="stPills"] label {
+    padding: 6px 8px !important;
+    min-height: 36px !important;
+}
+[data-testid="stPills"] label p {
+    font-size: 0.82rem !important;
+    font-weight: 600 !important;
+    white-space: nowrap !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
