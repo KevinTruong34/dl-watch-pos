@@ -155,21 +155,6 @@ header, footer, #stDecoration, .stAppDeployButton,
 [data-testid="stAlert"] {
     border-radius: 10px !important;
 }
-
-/* Main nav pills — fit 4 tabs in 1 row on mobile */
-[data-testid="stPills"] [role="radiogroup"] {
-    gap: 4px !important;
-    flex-wrap: nowrap !important;
-}
-[data-testid="stPills"] label {
-    padding: 6px 8px !important;
-    min-height: 36px !important;
-}
-[data-testid="stPills"] label p {
-    font-size: 0.82rem !important;
-    font-weight: 600 !important;
-    white-space: nowrap !important;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -272,6 +257,26 @@ render_session_warning_banner()
 # ════════════════════════════════════════════════════════════════
 # MAIN — Tabs Bán hàng / Lịch sử / Đặt hàng / Thông tin
 # ════════════════════════════════════════════════════════════════
+
+# CSS scoped cho main nav pills — fit 4 tab 1 hàng + chữ đậm + nhỏ
+# Streamlit tự generate class .st-key-<key> trên container của widget
+st.markdown("""
+<style>
+.st-key-main_tab [role="radiogroup"] {
+    gap: 4px !important;
+    flex-wrap: nowrap !important;
+}
+.st-key-main_tab button {
+    padding: 4px 10px !important;
+    min-height: 34px !important;
+}
+.st-key-main_tab button p {
+    font-size: 0.78rem !important;
+    font-weight: 700 !important;
+    white-space: nowrap !important;
+}
+</style>
+""", unsafe_allow_html=True)
 
 tab_choice = st.pills(
     "main_nav",
