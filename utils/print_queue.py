@@ -34,8 +34,6 @@ _TZ_VN = ZoneInfo("Asia/Ho_Chi_Minh")
 # ════════════════════════════════════════════════════════════════
 
 LINE_WIDTH = 42
-RESET = "\x1b\x40"          # ESC @ — init printer (clear buffer)
-TAIL = "\n\n\n\n"           # 4 line feed cuối để xé giấy
 
 SEP_THIN  = "-" * LINE_WIDTH
 SEP_THICK = "=" * LINE_WIDTH
@@ -215,7 +213,7 @@ def _build_text_hoa_don(hd: dict) -> str:
     lines.append(SEP_THICK)
     lines.append(_center("Cảm ơn quý khách!"))
 
-    return RESET + "\n".join(lines) + TAIL
+    return "\n".join(lines)
 
 
 # ════════════════════════════════════════════════════════════════
@@ -300,7 +298,7 @@ def _build_text_phieu_dat(p: dict) -> str:
     lines.append(_center("Vui lòng giữ phiếu này"))
     lines.append(_center("khi đến lấy hàng"))
 
-    return RESET + "\n".join(lines) + TAIL
+    return "\n".join(lines)
 
 
 # ════════════════════════════════════════════════════════════════
@@ -392,7 +390,7 @@ def _build_text_phieu_doi_tra(pdt: dict) -> str:
     lines.append(SEP_THICK)
     lines.append(_center("Cảm ơn quý khách!"))
 
-    return RESET + "\n".join(lines) + TAIL
+    return "\n".join(lines)
 
 
 # ════════════════════════════════════════════════════════════════
