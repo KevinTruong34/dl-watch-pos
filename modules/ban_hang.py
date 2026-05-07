@@ -12,7 +12,7 @@ UI flow:
 import streamlit as st
 
 from utils.auth import get_active_branch
-from utils.db import load_hang_hoa_pos
+from utils.db import load_hang_hoa_pos, is_open_price_item
 from utils.helpers import fmt_vnd
 
 
@@ -177,6 +177,7 @@ def _add_to_cart(item: dict):
         "giam_gia_dong": 0,
         "ton_kho":       item["ton"],
         "loai_sp":       item.get("loai_sp", "Hàng hóa"),
+        "is_open":       bool(item.get("is_open", False)),
     })
     _save_cart(cart)
 
@@ -298,8 +299,11 @@ def _search_hang_hoa(keyword: str, hh_list: list[dict],
 @st.dialog("Chi tiết sản phẩm")
 def _dialog_sua_dong(line: dict):
     is_dich_vu = line.get("loai_sp") == "Dịch vụ"
+    is_open    = bool(line.get("is_open", False))
 
-    if is_dich_vu:
+    if is_open:
+        ton_label = "✏️ Giá tự nhập"
+    elif is_dich_vu:
         ton_label = "🛠 Dịch vụ"
     else:
         ton_label = f"Tồn kho: {line['ton_kho']}"
@@ -317,7 +321,7 @@ def _dialog_sua_dong(line: dict):
     st.markdown("<div style='margin-top:14px;'></div>", unsafe_allow_html=True)
 
     st.markdown("**Số lượng:**")
-    sl_max = 99999 if is_dich_vu else max(1, line["ton_kho"])
+    sl_max = 99999 if (is_dich_vu or is_open) else max(1, line["ton_kho"])
     with st.container(key=f"numkb-dlg-sl-{line['ma_hang']}"):
         new_sl = st.number_input(
             "Số lượng", min_value=1, max_value=sl_max,
@@ -329,10 +333,13 @@ def _dialog_sua_dong(line: dict):
     with st.container(key=f"numkb-dlg-dg-{line['ma_hang']}"):
         new_dg = st.number_input(
             "Đơn giá", min_value=0, value=line["don_gia"], step=10000,
-            key=f"dlg_dg_{line['ma_hang']}", label_visibility="collapsed"
+            key=f"dlg_dg_{line['ma_hang']}", label_visibility="collapsed",
+            disabled=not is_open,
         )
     if new_dg > 0:
         st.caption(f"= {fmt_vnd(new_dg)}")
+    if not is_open:
+        st.caption("🔒 Đơn giá cố định — chỉ SP nhóm 'Sản phẩm khác' / DVPS được sửa.")
 
     st.markdown("**Giảm giá:**")
     gg_mode = st.radio(
@@ -461,7 +468,8 @@ def _render_search_section():
 
 def _render_search_result_card(hh: dict):
     is_dich_vu = hh.get("loai_sp") == "Dịch vụ"
-    is_out_of_stock = (not is_dich_vu) and (hh["ton"] == 0)
+    is_open    = bool(hh.get("is_open", False))
+    is_out_of_stock = (not is_dich_vu) and (not is_open) and (hh["ton"] == 0)
 
     if is_out_of_stock:
         st.markdown(
@@ -477,7 +485,13 @@ def _render_search_result_card(hh: dict):
         )
         return
 
-    if is_dich_vu:
+    if is_open:
+        gia_text = "giá tự nhập" if hh.get("gia_ban", 0) == 0 else fmt_vnd(hh["gia_ban"])
+        icon = "🛠" if is_dich_vu else "📦"
+        info_line = (
+            f"{icon}✏️ **{hh['ten_hang']}** · **{hh['ma_hang']}** · _{gia_text}_"
+        )
+    elif is_dich_vu:
         info_line = (
             f"🛠 Dịch vụ · **{hh['ten_hang']}** · **{hh['ma_hang']}** · {fmt_vnd(hh['gia_ban'])}"
         )
