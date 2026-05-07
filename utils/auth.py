@@ -387,9 +387,10 @@ def _show_step_choose_nv():
         return
 
     n = len(nv_list)
-    if n <= 3:    spacer_vh = 20
-    elif n <= 5:  spacer_vh = 12
-    elif n <= 8:  spacer_vh = 6
+    # Vertical spacer co dãn theo số NV — số NV ít thì đẩy xuống giữa hơn
+    if n <= 2:    spacer_vh = 18
+    elif n <= 4:  spacer_vh = 8
+    elif n <= 6:  spacer_vh = 4
     else:         spacer_vh = 2
 
     _vertical_spacer(spacer_vh)
@@ -402,37 +403,105 @@ def _show_step_choose_nv():
         unsafe_allow_html=True
     )
 
+    # CSS cho grid 2 cột avatar
+    # - Force horizontal layout trên mobile
+    # - Card transparent, button overlay full clickable
+    # - Avatar tròn 110px, ảnh fit cover, fallback initials đỏ
     st.markdown("""
     <style>
-    .nv-card {
-        display: flex; align-items: center; gap: 14px;
-        background: #fff; border: 1px solid #e8e8e8;
-        border-radius: 12px; padding: 14px 16px;
-        margin: 6px 0; cursor: pointer;
+    /* Force 2 cột grid trên mobile */
+    .st-key-login-nv-grid div[data-testid="stHorizontalBlock"] {
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        gap: 12px !important;
+        width: 100% !important;
+        margin-bottom: 10px !important;
     }
-    .nv-avatar {
-        width: 44px; height: 44px; border-radius: 50%;
-        background: #e63946; color: #fff;
-        display: flex; align-items: center; justify-content: center;
-        font-size: 1.2rem; font-weight: 700;
-        flex-shrink: 0;
+    .st-key-login-nv-grid div[data-testid="stHorizontalBlock"] > div {
+        min-width: 0 !important;
     }
-    .nv-name { font-size: 1rem; font-weight: 600; color: #1a1a2e; }
+
+    /* Avatar tile button — flat, padding nhỏ, viền nhẹ */
+    [class*="st-key-login-nv-tile-"] button {
+        background: #fff !important;
+        border: 1px solid #e8e8e8 !important;
+        border-radius: 14px !important;
+        padding: 14px 8px 12px !important;
+        min-height: 0 !important;
+        height: auto !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        gap: 8px !important;
+        box-shadow: none !important;
+    }
+    [class*="st-key-login-nv-tile-"] button p {
+        margin: 0 !important;
+        font-size: 0.92rem !important;
+        font-weight: 600 !important;
+        color: #1a1a2e !important;
+        text-align: center !important;
+        line-height: 1.25 !important;
+        word-break: break-word !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-    for nv in nv_list:
-        display_name = _display_name_no_prefix(nv["ho_ten"])
-        col_btn = st.container()
-        with col_btn:
-            if st.button(
-                display_name,
-                key=f"login_nv_{nv['id']}",
-                use_container_width=True,
-            ):
-                st.session_state["_pending_nv"] = nv
-                _reset_numpad("login")
-                st.rerun()
+    # Render grid 2 cột — pair từng 2 NV
+    with st.container(key="login-nv-grid"):
+        for i in range(0, n, 2):
+            col_a, col_b = st.columns(2)
+            with col_a:
+                _render_nv_tile(nv_list[i])
+            with col_b:
+                if i + 1 < n:
+                    _render_nv_tile(nv_list[i + 1])
+                else:
+                    # NV lẻ cuối — render placeholder trống để giữ layout 2 cột
+                    st.markdown("&nbsp;", unsafe_allow_html=True)
+
+
+def _render_nv_tile(nv: dict):
+    """
+    1 ô avatar trong grid login.
+    Avatar 110px tròn — hiện ảnh nếu có avatar_url, không thì fallback initials đỏ.
+    Click vào avatar/tên → set _pending_nv → rerun sang bước nhập PIN.
+    """
+    display_name = _display_name_no_prefix(nv["ho_ten"])
+    initials = _initials(nv["ho_ten"])
+    avatar_url = (nv.get("avatar_url") or "").strip()
+
+    # Render avatar HTML (markdown, không click được)
+    if avatar_url:
+        avatar_html = (
+            f"<img src='{avatar_url}' "
+            f"style='width:110px;height:110px;border-radius:50%;"
+            f"object-fit:cover;display:block;margin:0 auto 10px;"
+            f"border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.1);' "
+            f"alt='{display_name}'>"
+        )
+    else:
+        avatar_html = (
+            f"<div style='width:110px;height:110px;border-radius:50%;"
+            f"background:#e63946;color:#fff;display:flex;align-items:center;"
+            f"justify-content:center;font-size:2.4rem;font-weight:700;"
+            f"margin:0 auto 10px;box-shadow:0 1px 4px rgba(0,0,0,0.1);'>"
+            f"{initials}</div>"
+        )
+
+    # Render avatar trước (markdown, hiển thị thuần)
+    st.markdown(avatar_html, unsafe_allow_html=True)
+
+    # Button bên dưới làm cả ô click được. Label = tên NV.
+    with st.container(key=f"login-nv-tile-{nv['id']}"):
+        if st.button(
+            display_name,
+            key=f"login_nv_{nv['id']}",
+            use_container_width=True,
+        ):
+            st.session_state["_pending_nv"] = nv
+            _reset_numpad("login")
+            st.rerun()
 
 
 def _show_step_pin(nv: dict, has_pin: bool):
