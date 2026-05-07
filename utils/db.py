@@ -19,10 +19,10 @@ except Exception:
 def load_nhan_vien_active() -> list[dict]:
     """
     Trả về list nhân viên active để hiển thị ở màn login.
-    Mỗi item: {id, username, ho_ten, role, chi_nhanh_list}
+    Mỗi item: {id, username, ho_ten, role, avatar_url, chi_nhanh_list}
     """
     try:
-        res = supabase.table("nhan_vien").select("id,username,ho_ten,role") \
+        res = supabase.table("nhan_vien").select("id,username,ho_ten,role,avatar_url") \
             .eq("active", True).order("ho_ten").execute()
         if not res.data:
             return []
