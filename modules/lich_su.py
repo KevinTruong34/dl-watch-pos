@@ -22,6 +22,7 @@ from utils.db import (
     load_hoa_don_pos_history, huy_hoa_don_pos_rpc,
     search_hoa_don_pos, load_phieu_doi_tra_by_hd,
     load_phieu_doi_tra_pos_history,
+    load_apsc_history, search_apsc,
 )
 from utils.helpers import fmt_vnd, today_vn
 from modules.doi_tra import (
@@ -608,6 +609,183 @@ def _render_pdt_card(pdt: dict):
 
 
 # ════════════════════════════════════════════════════════════════
+# RENDER — Card APSC (hóa đơn sửa chữa)
+# ════════════════════════════════════════════════════════════════
+
+def _render_apsc_card(apsc: dict):
+    is_cancelled = apsc.get("trang_thai") == "Đã hủy"
+    ma_hd     = apsc.get("ma_hd", "")
+    ten_kh    = apsc.get("ten_khach") or "Khách lẻ"
+    sdt       = apsc.get("sdt_khach") or ""
+    tien      = apsc.get("khach_can_tra", 0)
+    nguoi_ban = apsc.get("nguoi_ban") or "—"
+    created   = apsc.get("created_at", "")
+    ma_ycsc   = apsc.get("ma_ycsc", "")
+
+    state = "cancelled" if is_cancelled else "active"
+    container_key = f"ls-invcard-{state}-apsc-{ma_hd}"
+    btn_key = f"ls-invbtn-apsc-{ma_hd}"
+
+    if is_cancelled:
+        pill = _status_pill_html("Đã hủy", "cancelled")
+    else:
+        pill = ("<span style='display:inline-flex;align-items:center;gap:4px;"
+                "background:#fff5e6;color:#d97706;border-radius:999px;"
+                "padding:3px 10px;font-size:0.78rem;font-weight:600;"
+                "white-space:nowrap;'>🔧 Sửa chữa</span>")
+
+    cancel_tag = ("<span style='background:#f0f0f0;color:#888;font-size:0.7rem;"
+                  "font-weight:600;padding:1px 6px;border-radius:4px;"
+                  "margin-left:6px;letter-spacing:0.5px;'>ĐÃ HỦY</span>"
+                  if is_cancelled else "")
+    sdt_html = (f"<span style='color:#888;white-space:nowrap;'>📞 {sdt}</span>"
+                if sdt else "")
+    ycsc_html = (f"<span style='color:#888;font-size:0.78rem;white-space:nowrap;'>"
+                 f"từ {ma_ycsc}</span>" if ma_ycsc else "")
+
+    with st.container(key=container_key):
+        col_date, col_body = st.columns([1, 5])
+        with col_date:
+            st.markdown(_date_strip_html(created), unsafe_allow_html=True)
+        with col_body:
+            st.markdown(
+                f"<div style='display:flex;justify-content:space-between;"
+                f"align-items:flex-start;gap:8px;'>"
+                f"<div style='font-family:monospace;font-size:1rem;"
+                f"font-weight:800;color:#1a1a2e;'>🔧 {ma_hd}{cancel_tag}</div>"
+                f"<div style='font-size:1.05rem;font-weight:800;color:#e63946;"
+                f"white-space:nowrap;'>{fmt_vnd(tien)}</div>"
+                f"</div>"
+                f"<div style='font-size:0.88rem;color:#1a1a2e;margin-top:2px;"
+                f"display:flex;gap:10px;flex-wrap:wrap;align-items:center;'>"
+                f"<span>{ten_kh}</span>{sdt_html}{ycsc_html}</div>"
+                f"<div style='display:flex;justify-content:space-between;"
+                f"align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap;'>"
+                f"<div style='font-size:0.78rem;color:#888;display:flex;"
+                f"gap:10px;flex-wrap:wrap;'>"
+                f"<span>👤 NV: {nguoi_ban}</span></div>"
+                f"<div>{pill}</div>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+        with st.container(key=btn_key):
+            if st.button("Xem chi tiết",
+                         key=f"ls_apsc_card_{ma_hd}",
+                         use_container_width=True):
+                st.session_state["lichsu_view_apsc"] = apsc
+                st.rerun()
+
+
+# ════════════════════════════════════════════════════════════════
+# MODAL — Chi tiết APSC
+# ════════════════════════════════════════════════════════════════
+
+@st.dialog("Chi tiết hóa đơn sửa chữa")
+def _dialog_chi_tiet_apsc(apsc: dict):
+    ma_hd = apsc.get("ma_hd", "")
+    is_cancelled = apsc.get("trang_thai") == "Đã hủy"
+    ma_ycsc = apsc.get("ma_ycsc", "")
+
+    badge = ""
+    if is_cancelled:
+        badge = ("<span style='background:#ffe5e5;color:#c1121f;"
+                 "padding:2px 8px;border-radius:6px;font-size:0.78rem;"
+                 "font-weight:600;margin-left:6px;'>Đã hủy</span>")
+
+    st.markdown(
+        f"<div style='font-family:monospace;font-size:1.1rem;font-weight:700;"
+        f"color:#1a1a2e;'>🔧 {ma_hd}{badge}</div>"
+        f"<div style='font-size:0.82rem;color:#888;margin-top:2px;'>"
+        f"{_format_invoice_date(apsc.get('created_at',''))}</div>",
+        unsafe_allow_html=True
+    )
+    if ma_ycsc:
+        st.markdown(
+            f"<div style='font-size:0.82rem;color:#666;margin-top:4px;'>"
+            f"Phiếu sửa chữa gốc: <b>{ma_ycsc}</b></div>",
+            unsafe_allow_html=True
+        )
+    st.markdown("<hr style='margin:10px 0 8px;'>", unsafe_allow_html=True)
+
+    sdt_text = (" · " + apsc["sdt_khach"]) if apsc.get("sdt_khach") else ""
+    st.markdown(
+        f"<div style='font-size:0.88rem;color:#555;'>"
+        f"<b>Khách:</b> {apsc.get('ten_khach') or 'Khách lẻ'}{sdt_text}<br>"
+        f"<b>NV bán:</b> {apsc.get('nguoi_ban') or '—'}"
+        f"</div>",
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        "<div style='font-size:0.88rem;font-weight:600;color:#1a1a2e;"
+        "margin:12px 0 6px;'>Dịch vụ / Linh kiện:</div>",
+        unsafe_allow_html=True
+    )
+    items_html = "<div style='background:#fafafa;border:1px solid #eee;" \
+                 "border-radius:8px;padding:8px 10px;'>"
+    items = apsc.get("items", [])
+    if not items:
+        items_html += ("<div style='color:#888;text-align:center;padding:8px;'>"
+                       "(Không có chi tiết)</div>")
+    else:
+        for ct in items:
+            sl = ct.get("so_luong", 0)
+            dg = ct.get("don_gia", 0)
+            tt = ct.get("thanh_tien", 0)
+            ma_hang = (ct.get("ma_hang", "") or "").strip()
+            ma_hang_html = (
+                f"<span style='font-size:0.78rem;color:#666;font-weight:400;'>"
+                f"&nbsp;•&nbsp;{ma_hang}</span>" if ma_hang else ""
+            )
+            items_html += (
+                f"<div style='padding:4px 0;border-bottom:1px dashed #e8e8e8;'>"
+                f"<div style='font-size:0.86rem;color:#1a1a2e;font-weight:500;'>"
+                f"{ct.get('ten_hang','')}{ma_hang_html}</div>"
+                f"<div style='display:flex;justify-content:space-between;"
+                f"font-size:0.78rem;color:#666;margin-top:2px;'>"
+                f"<span>SL {sl} × {fmt_vnd(dg)}</span>"
+                f"<span style='color:#1a1a2e;font-weight:600;'>{fmt_vnd(tt)}</span>"
+                f"</div></div>"
+            )
+    items_html += "</div>"
+    st.markdown(items_html, unsafe_allow_html=True)
+
+    rows = [("Tổng tiền hàng", fmt_vnd(apsc.get("tong_tien_hang", 0)))]
+    if apsc.get("giam_gia_don", 0) > 0:
+        rows.append(("Giảm giá đơn", "− " + fmt_vnd(apsc["giam_gia_don"])))
+    rows.append(("Khách cần trả", fmt_vnd(apsc.get("khach_can_tra", 0))))
+    if apsc.get("tien_mat", 0) > 0:
+        rows.append(("💵 Tiền mặt", fmt_vnd(apsc["tien_mat"])))
+    if apsc.get("chuyen_khoan", 0) > 0:
+        rows.append(("🏦 Chuyển khoản", fmt_vnd(apsc["chuyen_khoan"])))
+    if apsc.get("the", 0) > 0:
+        rows.append(("💳 Thẻ", fmt_vnd(apsc["the"])))
+
+    summary_html = "<div style='background:#fff;border:1px solid #e8e8e8;" \
+                   "border-radius:8px;padding:8px 12px;margin-top:10px;'>"
+    for lbl, val in rows:
+        summary_html += (
+            f"<div style='display:flex;justify-content:space-between;"
+            f"padding:3px 0;font-size:0.86rem;'>"
+            f"<span style='color:#777;'>{lbl}:</span>"
+            f"<span style='color:#1a1a2e;font-weight:600;'>{val}</span>"
+            f"</div>"
+        )
+    summary_html += "</div>"
+    st.markdown(summary_html, unsafe_allow_html=True)
+
+    if apsc.get("ghi_chu"):
+        st.markdown(
+            f"<div style='font-size:0.82rem;color:#555;margin-top:10px;"
+            f"padding:8px 10px;background:#f9f9f9;border-radius:6px;"
+            f"border-left:3px solid #d97706;'>"
+            f"<b>Ghi chú:</b> {apsc['ghi_chu']}"
+            f"</div>",
+            unsafe_allow_html=True
+        )
+
+
+# ════════════════════════════════════════════════════════════════
 # ENTRY POINT
 # ════════════════════════════════════════════════════════════════
 
@@ -630,6 +808,10 @@ def module_lich_su():
     pending_view_pdt = st.session_state.pop("lichsu_view_pdt", None)
     if pending_view_pdt:
         dialog_chi_tiet_pdt(pending_view_pdt)
+
+    pending_view_apsc = st.session_state.pop("lichsu_view_apsc", None)
+    if pending_view_apsc:
+        _dialog_chi_tiet_apsc(pending_view_apsc)
 
     # ── Inject CSS ──
     st.markdown(_LICHSU_CSS, unsafe_allow_html=True)
@@ -670,28 +852,32 @@ def module_lich_su():
     with st.spinner("Đang tải..."):
         invoices = load_hoa_don_pos_history(chi_nhanh, from_date_iso)
         pdts     = load_phieu_doi_tra_pos_history(chi_nhanh, from_date_iso)
+        apscs    = load_apsc_history(chi_nhanh, from_date_iso)
 
     # Ẩn HĐ + phiếu đã hủy khỏi tab Lịch sử POS
     # (hiển thị bên web app là đủ để tra cứu)
     invoices = [h for h in invoices if h.get("trang_thai") != "Đã hủy"]
     pdts     = [p for p in pdts     if p.get("trang_thai") != "Đã hủy"]
+    apscs    = [a for a in apscs    if a.get("trang_thai") != "Đã hủy"]
 
     # Merge + sort newest-first bằng datetime thực (không sort string)
     all_items = (
-        [{"_type": "hd",  **h} for h in invoices] +
-        [{"_type": "pdt", **p} for p in pdts]
+        [{"_type": "hd",   **h} for h in invoices] +
+        [{"_type": "pdt",  **p} for p in pdts] +
+        [{"_type": "apsc", **a} for a in apscs]
     )
     all_items.sort(key=lambda x: _parse_iso(x.get("created_at", "")), reverse=True)
 
-    # Info banner (kiểu mockup: "Hiển thị hóa đơn N ngày gần nhất · Tổng: M hóa đơn")
+    # Info banner
     n_days = days_back + 1
-    total = len(invoices) + len(pdts)
-    pdt_note = f" · <b>{len(pdts)}</b> phiếu ĐT" if pdts else ""
+    total = len(invoices) + len(pdts) + len(apscs)
+    pdt_note  = f" · <b>{len(pdts)}</b> phiếu ĐT" if pdts else ""
+    apsc_note = f" · <b>{len(apscs)}</b> sửa chữa" if apscs else ""
     st.markdown(
         f"<div class='ls-info-banner'>"
         f"<span style='font-size:1rem;'>📅</span>"
         f"<span>Hiển thị hóa đơn <b>{n_days}</b> ngày gần nhất · "
-        f"Tổng: <b>{total}</b> hóa đơn{pdt_note}</span>"
+        f"Tổng: <b>{total}</b> hóa đơn{pdt_note}{apsc_note}</span>"
         f"</div>",
         unsafe_allow_html=True,
     )
@@ -710,8 +896,10 @@ def module_lich_su():
         for item in all_items:
             if item["_type"] == "hd":
                 _render_invoice_card(item)
-            else:
+            elif item["_type"] == "pdt":
                 _render_pdt_card(item)
+            elif item["_type"] == "apsc":
+                _render_apsc_card(item)
 
     # ── Nút xem cũ hơn / quay về hôm nay ──
     st.markdown(
