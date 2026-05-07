@@ -330,8 +330,8 @@ def _render_search_card_moi(hh: dict):
     is_dich_vu = hh.get("loai_sp") == "Dịch vụ"
     is_open    = bool(hh.get("is_open", False))
 
-    # Cho phép Dịch vụ open-price (DVPS); chặn dịch vụ thường
-    if is_dich_vu and not is_open:
+    # Không thể đổi hàng hóa lấy dịch vụ → chặn mọi Dịch vụ (kể cả DVPS)
+    if is_dich_vu:
         return
 
     is_oos = (not is_open) and (hh["ton"] == 0)
