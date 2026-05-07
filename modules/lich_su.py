@@ -941,11 +941,14 @@ def module_lich_su():
 def _render_find_results(keyword: str):
     cn_list = get_accessible_branches() or [get_active_branch()]
     with st.spinner("Đang tìm hóa đơn..."):
-        results = search_hoa_don_pos(keyword, cn_list, limit=30)
-    # Ẩn HĐ đã hủy
-    results = [r for r in results if r.get("trang_thai") != "Đã hủy"]
-    st.caption(f"🔎 Kết quả tìm '{keyword}': {len(results)} HĐ")
-    if not results:
+        results      = search_hoa_don_pos(keyword, cn_list, limit=30)
+        apsc_results = search_apsc(keyword, cn_list, limit=30)
+    results      = [r for r in results      if r.get("trang_thai") != "Đã hủy"]
+    apsc_results = [r for r in apsc_results if r.get("trang_thai") != "Đã hủy"]
+
+    total = len(results) + len(apsc_results)
+    st.caption(f"🔎 Kết quả tìm '{keyword}': {total} HĐ")
+    if total == 0:
         st.markdown(
             "<div style='background:#fafafa;border:1px dashed #ddd;"
             "border-radius:10px;padding:24px 16px;text-align:center;"
@@ -955,8 +958,17 @@ def _render_find_results(keyword: str):
             unsafe_allow_html=True
         )
         return
-    for inv in results:
-        _render_invoice_card(inv)
+
+    merged = (
+        [{"_type": "hd",   **r} for r in results] +
+        [{"_type": "apsc", **a} for a in apsc_results]
+    )
+    merged.sort(key=lambda x: _parse_iso(x.get("created_at", "")), reverse=True)
+    for item in merged:
+        if item["_type"] == "apsc":
+            _render_apsc_card(item)
+        else:
+            _render_invoice_card(item)
     st.markdown("<div style='margin-top:14px;'></div>", unsafe_allow_html=True)
     if st.button("✕ Xóa tìm kiếm", use_container_width=True, key="lichsu_clear_find"):
         st.session_state["lichsu_find_kw"] = ""
