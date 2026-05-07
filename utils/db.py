@@ -62,6 +62,18 @@ def load_pin(nhan_vien_id: int) -> str | None:
         return None
 
 
+# ── Helper: phân loại SP cho phép sửa giá khi bán (SPK/DVPS) ──
+def is_open_price_item(item: dict) -> bool:
+    """Returns True nếu SP cho phép NV sửa giá khi bán (SPK, DVPS)."""
+    loai_hang   = (item.get("loai_hang") or "").strip()
+    thuong_hieu = (item.get("thuong_hieu") or "").strip()
+    if loai_hang == "Sản phẩm khác":
+        return True
+    if loai_hang == "Sửa chữa" and thuong_hieu == "Chi phí sửa chữa phát sinh":
+        return True
+    return False
+
+
 # ── Load danh sách hàng hóa + tồn kho cho POS ──
 @st.cache_data(ttl=300)
 def load_hang_hoa_pos(chi_nhanh: str) -> list[dict]:
@@ -76,13 +88,13 @@ def load_hang_hoa_pos(chi_nhanh: str) -> list[dict]:
     Returns: list of dict {ma_hang, ma_vach, ten_hang, gia_ban, ton, loai_sp}
     """
     try:
-        # 1. Load master: hàng hóa + dịch vụ active có giá > 0
+        # 1. Load master: hàng hóa + dịch vụ active.
+        # Lấy thêm loai_hang + thuong_hieu để check open-price (SPK/DVPS giá=0).
         rows, batch, offset = [], 1000, 0
         while True:
             res = supabase.table("hang_hoa") \
-                .select("ma_hang,ma_vach,ten_hang,gia_ban,loai_sp") \
+                .select("ma_hang,ma_vach,ten_hang,gia_ban,loai_sp,loai_hang,thuong_hieu") \
                 .neq("active", False) \
-                .gt("gia_ban", 0) \
                 .range(offset, offset + batch - 1).execute()
             if not res.data:
                 break
@@ -115,23 +127,39 @@ def load_hang_hoa_pos(chi_nhanh: str) -> list[dict]:
             ton = int(r.get("Tồn cuối kì", 0) or 0)
             ton_map[mh] = ton_map.get(mh, 0) + ton
 
-        # 3. Merge — phân biệt theo loai_sp
+        # 3. Merge — phân biệt theo loai_sp + open-price (SPK/DVPS)
         result = []
         for r in rows:
             ma = str(r.get("ma_hang", "")).strip()
-            loai_sp = str(r.get("loai_sp", "") or "Hàng hóa").strip()
-            # Dịch vụ → tồn vô hạn; Hàng hóa → lấy từ the_kho
-            if loai_sp == "Dịch vụ":
+            loai_sp     = str(r.get("loai_sp", "") or "Hàng hóa").strip()
+            loai_hang   = str(r.get("loai_hang", "") or "").strip()
+            thuong_hieu = str(r.get("thuong_hieu", "") or "").strip()
+            gia_ban     = int(r.get("gia_ban", 0) or 0)
+
+            is_open = is_open_price_item({
+                "loai_hang": loai_hang, "thuong_hieu": thuong_hieu,
+            })
+
+            # Skip SP gia_ban=0 nếu KHÔNG phải open-price (legacy filter)
+            if gia_ban <= 0 and not is_open:
+                continue
+
+            # Tồn: Dịch vụ + open-price (SPK/DVPS) → vô hạn; còn lại lấy từ the_kho
+            if loai_sp == "Dịch vụ" or is_open:
                 ton = 999999
             else:
                 ton = ton_map.get(ma, 0)
+
             result.append({
-                "ma_hang":  ma,
-                "ma_vach":  str(r.get("ma_vach", "") or "").strip(),
-                "ten_hang": str(r.get("ten_hang", "") or ""),
-                "gia_ban":  int(r.get("gia_ban", 0) or 0),
-                "ton":      ton,
-                "loai_sp":  loai_sp,
+                "ma_hang":     ma,
+                "ma_vach":     str(r.get("ma_vach", "") or "").strip(),
+                "ten_hang":    str(r.get("ten_hang", "") or ""),
+                "gia_ban":     gia_ban,
+                "ton":         ton,
+                "loai_sp":     loai_sp,
+                "loai_hang":   loai_hang,
+                "thuong_hieu": thuong_hieu,
+                "is_open":     is_open,
             })
         return result
     except Exception as e:
@@ -358,16 +386,29 @@ def load_hoa_don_pos_by_ma(ma_hd: str) -> dict | None:
             .eq("ma_hd", ma_hd).execute()
         items = res_ct.data or []
 
-        # Enrich với loai_sp từ hang_hoa (cần để UI đổi/trả biết skip Dịch vụ)
+        # Enrich loai_sp + loai_hang + thuong_hieu để UI biết:
+        #  - Skip Dịch vụ trong items_tra
+        #  - Phát hiện SPK/DVPS (open-price) cho items_moi
         if items:
             ma_hang_list = list({ct["ma_hang"] for ct in items if ct.get("ma_hang")})
             res_hh = supabase.table("hang_hoa") \
-                .select("ma_hang,loai_sp") \
+                .select("ma_hang,loai_sp,loai_hang,thuong_hieu") \
                 .in_("ma_hang", ma_hang_list).execute()
-            loai_map = {r["ma_hang"]: (r.get("loai_sp") or "Hàng hóa")
-                        for r in (res_hh.data or [])}
+            info_map = {
+                r["ma_hang"]: {
+                    "loai_sp":     r.get("loai_sp") or "Hàng hóa",
+                    "loai_hang":   r.get("loai_hang") or "",
+                    "thuong_hieu": r.get("thuong_hieu") or "",
+                }
+                for r in (res_hh.data or [])
+            }
             for ct in items:
-                ct["loai_sp"] = loai_map.get(ct.get("ma_hang", ""), "Hàng hóa")
+                info = info_map.get(ct.get("ma_hang", ""), {
+                    "loai_sp": "Hàng hóa", "loai_hang": "", "thuong_hieu": "",
+                })
+                ct["loai_sp"]     = info["loai_sp"]
+                ct["loai_hang"]   = info["loai_hang"]
+                ct["thuong_hieu"] = info["thuong_hieu"]
 
         h["items"] = items
         return h
