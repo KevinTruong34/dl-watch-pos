@@ -616,3 +616,147 @@ def clean_name(s: str) -> str:
     if not s:
         return ""
     return " ".join(str(s).split())[:100]
+
+
+# ════════════════════════════════════════════════════════════════
+# APSC (Hóa đơn sửa chữa) — đọc từ hoa_don table (web app insert vào)
+# Schema khác hoa_don_pos: cột tiếng Việt, denormalized (mỗi item 1 row)
+# ════════════════════════════════════════════════════════════════
+from datetime import datetime as _dt_apsc
+from zoneinfo import ZoneInfo as _ZI_apsc
+from collections import defaultdict as _dd_apsc
+
+
+def _build_apsc_dict(ma_hd: str, rows: list) -> dict:
+    """Build APSC dict từ list rows denormalized — schema khớp hoa_don_pos."""
+    head = rows[0]
+    thoi_gian_str = head.get("Thời gian") or head.get("Thời gian tạo") or ""
+    created_iso = ""
+    try:
+        dt = _dt_apsc.strptime(thoi_gian_str, "%d/%m/%Y %H:%M:%S")
+        dt = dt.replace(tzinfo=_ZI_apsc("Asia/Ho_Chi_Minh"))
+        created_iso = dt.isoformat()
+    except Exception:
+        pass
+
+    items = []
+    for r in rows:
+        ten = (r.get("Tên hàng") or "").strip()
+        if not ten:
+            continue  # skip rows trống (edge case)
+        items.append({
+            "ma_hang":       (r.get("Mã hàng") or "").strip(),
+            "ten_hang":      ten,
+            "so_luong":      int(r.get("Số lượng", 0) or 0),
+            "don_gia":       int(r.get("Đơn giá", 0) or 0),
+            "thanh_tien":    int(r.get("Thành tiền", 0) or 0),
+            "giam_gia_dong": int(r.get("Giảm giá", 0) or 0),
+        })
+
+    return {
+        "ma_hd":           ma_hd,
+        "chi_nhanh":       head.get("Chi nhánh", "") or "",
+        "ten_khach":       head.get("Tên khách hàng") or "Khách lẻ",
+        "sdt_khach":       (head.get("Điện thoại") or "").strip(),
+        "tong_tien_hang":  int(head.get("Tổng tiền hàng", 0) or 0),
+        "giam_gia_don":    int(head.get("Giảm giá hóa đơn", 0) or 0),
+        "khach_can_tra":   int(head.get("Khách cần trả", 0) or 0),
+        "tien_mat":        int(head.get("Tiền mặt", 0) or 0),
+        "chuyen_khoan":    int(head.get("Chuyển khoản", 0) or 0),
+        "the":             int(head.get("Thẻ", 0) or 0),
+        "tien_thua":       0,
+        "tien_coc_da_thu": 0,
+        "trang_thai":      head.get("Trạng thái") or "Hoàn thành",
+        "nguoi_ban":       head.get("Người bán") or head.get("Người tạo") or "—",
+        "ma_ycsc":         head.get("Mã YCSC", "") or "",
+        "ghi_chu":         head.get("Ghi chú", "") or "",
+        "created_at":      created_iso,
+        "items":           items,
+        "_apsc":           True,
+    }
+
+
+def load_apsc_history(chi_nhanh: str, from_date_iso: str = None,
+                      limit: int = 100) -> list:
+    """Load APSC invoices từ hoa_don table cho 1 chi nhánh."""
+    try:
+        res = supabase.table("hoa_don") \
+            .select("*") \
+            .eq("Chi nhánh", chi_nhanh) \
+            .like("Mã hóa đơn", "APSC%") \
+            .limit(limit * 15) \
+            .execute()
+        if not res.data:
+            return []
+
+        groups = _dd_apsc(list)
+        for r in res.data:
+            ma_hd = r.get("Mã hóa đơn", "")
+            if ma_hd and ma_hd.startswith("APSC"):
+                groups[ma_hd].append(r)
+
+        from_dt = None
+        if from_date_iso:
+            try:
+                from_dt = _dt_apsc.fromisoformat(
+                    from_date_iso.replace("Z", "+00:00"))
+            except Exception:
+                pass
+
+        results = []
+        for ma_hd, rows in groups.items():
+            apsc = _build_apsc_dict(ma_hd, rows)
+            if from_dt and apsc["created_at"]:
+                try:
+                    apsc_dt = _dt_apsc.fromisoformat(apsc["created_at"])
+                    if apsc_dt < from_dt:
+                        continue
+                except Exception:
+                    pass
+            results.append(apsc)
+
+        results.sort(key=lambda x: x["created_at"], reverse=True)
+        return results[:limit]
+    except Exception as e:
+        try:
+            _logger.warning(f"load_apsc_history error: {e}")
+        except Exception:
+            pass
+        return []
+
+
+def search_apsc(keyword: str, branches: list, limit: int = 30) -> list:
+    """Search APSC theo ma_hd, sdt, hoặc ten_khach (in-Python filter)."""
+    try:
+        kw = (keyword or "").strip().lower()
+        if not kw:
+            return []
+        res = supabase.table("hoa_don") \
+            .select("*") \
+            .in_("Chi nhánh", list(branches)) \
+            .like("Mã hóa đơn", "APSC%") \
+            .limit(500) \
+            .execute()
+        if not res.data:
+            return []
+        groups = _dd_apsc(list)
+        for r in res.data:
+            ma_hd = r.get("Mã hóa đơn", "")
+            if ma_hd and ma_hd.startswith("APSC"):
+                groups[ma_hd].append(r)
+        results = []
+        for ma_hd, rows in groups.items():
+            head = rows[0]
+            ten_kh = (head.get("Tên khách hàng") or "").lower()
+            sdt    = (head.get("Điện thoại") or "").lower().replace(" ", "")
+            ma_lower = ma_hd.lower()
+            if kw in ma_lower or kw in sdt or kw in ten_kh:
+                results.append(_build_apsc_dict(ma_hd, rows))
+        results.sort(key=lambda x: x["created_at"], reverse=True)
+        return results[:limit]
+    except Exception as e:
+        try:
+            _logger.warning(f"search_apsc error: {e}")
+        except Exception:
+            pass
+        return []
