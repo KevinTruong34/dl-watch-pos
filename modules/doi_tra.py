@@ -241,6 +241,7 @@ def _moi_add(item: dict):
         "don_gia":  int(item["gia_ban"]),
         "ton":      int(item["ton"]),
         "loai_sp":  item.get("loai_sp", "Hàng hóa"),
+        "is_open":  bool(item.get("is_open", False)),
     })
 
 
@@ -280,20 +281,23 @@ def _render_section_moi(chi_nhanh: str):
         return
 
     for line in cart:
+        is_open = bool(line.get("is_open", False))
+        is_dv   = line.get("loai_sp") == "Dịch vụ"
+
         col_info, col_sl, col_x = st.columns([5, 2, 1])
         with col_info:
+            label_prefix = "✏️ " if is_open else ""
             st.markdown(
                 f"<div style='padding:6px 0;'>"
                 f"<div style='font-size:0.88rem;color:#1a1a2e;font-weight:500;'>"
-                f"{line['ten_hang']}</div>"
+                f"{label_prefix}{line['ten_hang']}</div>"
                 f"<div style='font-size:0.78rem;color:#666;'>"
                 f"Đơn giá {fmt_vnd(line['don_gia'])}</div>"
                 f"</div>",
                 unsafe_allow_html=True
             )
         with col_sl:
-            is_dv = line.get("loai_sp") == "Dịch vụ"
-            sl_max = 99999 if is_dv else max(1, int(line["ton"]))
+            sl_max = 99999 if (is_dv or is_open) else max(1, int(line["ton"]))
             with st.container(key=f"numkb-dt-moi-sl-{line['ma_hang']}"):
                 new_sl = st.number_input(
                     "SL", min_value=1, max_value=sl_max,
@@ -308,15 +312,29 @@ def _render_section_moi(chi_nhanh: str):
                 _moi_remove(line["ma_hang"])
                 st.rerun()
 
+        # Open-price: thêm input giá editable
+        if is_open:
+            with st.container(key=f"numkb-dt-moi-dg-{line['ma_hang']}"):
+                new_dg = st.number_input(
+                    "Đơn giá",
+                    min_value=0, value=int(line["don_gia"]), step=10000,
+                    key=f"dt_moi_dg_{line['ma_hang']}",
+                    label_visibility="collapsed",
+                )
+            line["don_gia"] = int(new_dg)
+            if new_dg <= 0:
+                st.caption("⚠️ Cần nhập đơn giá > 0")
+
 
 def _render_search_card_moi(hh: dict):
     is_dich_vu = hh.get("loai_sp") == "Dịch vụ"
+    is_open    = bool(hh.get("is_open", False))
 
-    # Issue 2: không cho mua mới dịch vụ trong phiếu đổi/trả
-    if is_dich_vu:
+    # Cho phép Dịch vụ open-price (DVPS); chặn dịch vụ thường
+    if is_dich_vu and not is_open:
         return
 
-    is_oos = hh["ton"] == 0
+    is_oos = (not is_open) and (hh["ton"] == 0)
 
     if is_oos:
         st.markdown(
@@ -330,7 +348,12 @@ def _render_search_card_moi(hh: dict):
         )
         return
 
-    info = f"{hh['ma_hang']} · Tồn: {hh['ton']} · {fmt_vnd(hh['gia_ban'])}"
+    if is_open:
+        gia_text = "giá tự nhập" if hh.get("gia_ban", 0) == 0 else fmt_vnd(hh["gia_ban"])
+        icon = "🛠" if is_dich_vu else "📦"
+        info = f"{icon}✏️ {hh['ma_hang']} · {gia_text}"
+    else:
+        info = f"{hh['ma_hang']} · Tồn: {hh['ton']} · {fmt_vnd(hh['gia_ban'])}"
 
     if st.button(
         f"{hh['ten_hang']}\n{info}",
@@ -616,6 +639,11 @@ def render_man_doi_tra():
     errors = []
     if not items_tra:
         errors.append("Phải chọn ít nhất 1 món trả lại")
+    # Open-price (SPK/DVPS) phải có giá > 0
+    open_zero = [l for l in _get_moi_cart()
+                 if l.get("is_open") and int(l.get("don_gia", 0)) <= 0]
+    if open_zero:
+        errors.append("SPK/DVPS chưa nhập đơn giá")
     if chenh_lech > 0:
         tong_pttt = pttt["tien_mat"] + pttt["chuyen_khoan"] + pttt["the"]
         if tong_pttt < chenh_lech:
