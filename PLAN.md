@@ -241,23 +241,47 @@ def _filter_chi_hang_hoa(df):
 
 ### 2.4 Backfill flag cho mã chuẩn đã có (SPK + DVPS)
 
-```sql
-BEGIN;
+> **Cập nhật 2026-05-08:** Tách thành 2.4a + 2.4b. 2.4a chạy ATOMIC cùng 2.2 (CREATE OR REPLACE function) để tránh window vỡ SPK/DVPS. 2.4b defer tới sau khi Python helper deploy + verify trên Streamlit (rename text content, không phải infra — rủi ro thấp nhưng nên kiểm chứng nền tảng flag-based hoạt động trước).
 
+#### 2.4a — Backfill flag (gộp atomic vào step Helper SQL)
+
+Chạy chung 1 migration với 2.2:
+
+```sql
 -- Backfill 2 mã chuẩn đã tồn tại
 UPDATE hang_hoa SET is_open_price = true WHERE ma_hang IN ('SPK', 'DVPS');
 
--- Đổi DVPS thuong_hieu cho thống nhất naming
+-- (sau đó) CREATE OR REPLACE is_open_price_sql — xem 2.2
+```
+
+Verify ngay sau migration:
+
+```sql
+SELECT ma_hang, is_open_price FROM hang_hoa WHERE ma_hang IN ('SPK', 'DVPS');
+-- Expected: 2 row, cả 2 is_open_price = true
+
+SELECT is_open_price_sql('SPK'), is_open_price_sql('DVPS');
+-- Expected: true, true
+```
+
+#### 2.4b — Đổi DVPS thuong_hieu (DEFER)
+
+**Chỉ chạy SAU khi:**
+1. Python helper (2.3) đã deploy lên Streamlit
+2. Đã verify 6 scenarios: POS bán hàng SPK + DVPS, POS đổi/trả SPK + DVPS, web sửa chữa SPK + DVPS, báo cáo XNT loại SPK + DVPS
+
+```sql
+BEGIN;
 UPDATE hang_hoa SET thuong_hieu = 'Dịch vụ phát sinh'
 WHERE ma_hang = 'DVPS' AND thuong_hieu = 'Chi phí sửa chữa phát sinh';
 
 -- Verify
-SELECT ma_hang, thuong_hieu, is_open_price FROM hang_hoa
-WHERE ma_hang IN ('SPK', 'DVPS');
--- Expected: cả 2 mã có is_open_price = true; DVPS có thuong_hieu = 'Dịch vụ phát sinh'
-
+SELECT ma_hang, thuong_hieu, is_open_price FROM hang_hoa WHERE ma_hang = 'DVPS';
+-- Expected: thuong_hieu = 'Dịch vụ phát sinh', is_open_price = true
 COMMIT;
 ```
+
+**Lý do tách:** Đổi text content có rủi ro thấp nhưng KHÔNG cần atomic với schema/helper. Verify Python flag-based path hoạt động trước → đổi text sau là an toàn nhất, dễ rollback nếu phát sinh dependency ngầm vào string cũ.
 
 ### 2.5 Form UI — thêm checkbox "Cho phép sửa giá khi bán"
 
@@ -862,8 +886,9 @@ PHASE 1
 [ ] 1.4 Refactor web_app/modules/sua_chua.py (helper + SELECT)
 [ ] 1.5 Refactor web_app/modules/bao_cao.py (filter)
 [ ] 1.6 Add checkbox web_app/modules/hang_hoa.py (form)
-[ ] 1.7 Backfill SPK + DVPS + đổi DVPS thuong_hieu
+[ ] 1.7a Backfill SPK + DVPS is_open_price (gộp atomic với 1.2)
 [ ] 1.8 Verify Phase 1 (SQL + manual app test)
+[ ] 1.7b Đổi DVPS thuong_hieu (DEFER — chỉ chạy sau khi 1.8 verify ok)
 
 PHASE 3 — Migrate (theo thứ tự)
 [ ] G1  VESINH      (3)

@@ -62,16 +62,10 @@ def load_pin(nhan_vien_id: int) -> str | None:
         return None
 
 
-# ── Helper: phân loại SP cho phép sửa giá khi bán (SPK/DVPS) ──
+# ── Helper: phân loại SP cho phép sửa giá khi bán (open-price) ──
 def is_open_price_item(item: dict) -> bool:
-    """Returns True nếu SP cho phép NV sửa giá khi bán (SPK, DVPS)."""
-    loai_hang   = (item.get("loai_hang") or "").strip()
-    thuong_hieu = (item.get("thuong_hieu") or "").strip()
-    if loai_hang == "Sản phẩm khác":
-        return True
-    if loai_hang == "Sửa chữa" and thuong_hieu == "Chi phí sửa chữa phát sinh":
-        return True
-    return False
+    """True nếu SP cho phép NV sửa giá khi bán. Đọc thẳng flag is_open_price."""
+    return bool(item.get("is_open_price", False))
 
 
 # ── Load danh sách hàng hóa + tồn kho cho POS ──
@@ -93,7 +87,7 @@ def load_hang_hoa_pos(chi_nhanh: str) -> list[dict]:
         rows, batch, offset = [], 1000, 0
         while True:
             res = supabase.table("hang_hoa") \
-                .select("ma_hang,ma_vach,ten_hang,gia_ban,loai_sp,loai_hang,thuong_hieu") \
+                .select("ma_hang,ma_vach,ten_hang,gia_ban,loai_sp,loai_hang,thuong_hieu,is_open_price") \
                 .neq("active", False) \
                 .range(offset, offset + batch - 1).execute()
             if not res.data:
@@ -136,9 +130,7 @@ def load_hang_hoa_pos(chi_nhanh: str) -> list[dict]:
             thuong_hieu = str(r.get("thuong_hieu", "") or "").strip()
             gia_ban     = int(r.get("gia_ban", 0) or 0)
 
-            is_open = is_open_price_item({
-                "loai_hang": loai_hang, "thuong_hieu": thuong_hieu,
-            })
+            is_open = is_open_price_item({"is_open_price": r.get("is_open_price")})
 
             # Skip SP gia_ban=0 nếu KHÔNG phải open-price (legacy filter)
             if gia_ban <= 0 and not is_open:
