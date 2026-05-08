@@ -1,0 +1,3 @@
+[theme]
+# Force light theme bất kể system OS — không cho browser apply prefers-color-scheme: dark
+base = "light"
