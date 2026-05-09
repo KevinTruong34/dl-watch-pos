@@ -207,6 +207,12 @@ def do_logout():
 # UI HELPERS — vẽ numpad + avatar card
 # ════════════════════════════════════════════════════════════════
 
+# Feature flag: bật/tắt numpad on-screen ở màn hình PIN.
+# False = chỉ dùng bàn phím native của điện thoại (mặc định hiện tại).
+# True  = hiện thêm numpad trên màn hình (code cũ — giữ để sau này dùng lại).
+SHOW_ONSCREEN_NUMPAD = False
+
+
 def _initials(ho_ten: str) -> str:
     """Lấy chữ cái đầu của họ tên: 'Nguyễn Văn Tuấn' → 'T'"""
     if not ho_ten:
@@ -324,29 +330,30 @@ def _render_numpad_input(key_prefix: str, max_len: int = 4) -> str:
 
     current = st.session_state[pin_key]
 
-    zone_key = f"{key_prefix}_numpad_zone"
-    st.markdown(_NUMPAD_CSS.replace("__ZONE_KEY__", zone_key), unsafe_allow_html=True)
+    if SHOW_ONSCREEN_NUMPAD:
+        zone_key = f"{key_prefix}_numpad_zone"
+        st.markdown(_NUMPAD_CSS.replace("__ZONE_KEY__", zone_key), unsafe_allow_html=True)
 
-    rows = [["1", "2", "3"], ["4", "5", "6"], ["7", "8", "9"], ["", "0", "⌫"]]
-    with st.container(key=zone_key):
-        for row in rows:
-            cols = st.columns(3)
-            for i, label in enumerate(row):
-                with cols[i]:
-                    if label == "":
-                        st.markdown("&nbsp;", unsafe_allow_html=True)
-                    elif label == "⌫":
-                        if st.button("⌫", key=f"{key_prefix}_back",
-                                     use_container_width=True):
-                            if len(current) > 0:
-                                _set_pin_state(key_prefix, current[:-1])
+        rows = [["1", "2", "3"], ["4", "5", "6"], ["7", "8", "9"], ["", "0", "⌫"]]
+        with st.container(key=zone_key):
+            for row in rows:
+                cols = st.columns(3)
+                for i, label in enumerate(row):
+                    with cols[i]:
+                        if label == "":
+                            st.markdown("&nbsp;", unsafe_allow_html=True)
+                        elif label == "⌫":
+                            if st.button("⌫", key=f"{key_prefix}_back",
+                                         use_container_width=True):
+                                if len(current) > 0:
+                                    _set_pin_state(key_prefix, current[:-1])
+                                    st.rerun()
+                        else:
+                            if st.button(label, key=f"{key_prefix}_n{label}",
+                                         use_container_width=True,
+                                         disabled=(len(current) >= max_len)):
+                                _set_pin_state(key_prefix, current + label)
                                 st.rerun()
-                    else:
-                        if st.button(label, key=f"{key_prefix}_n{label}",
-                                     use_container_width=True,
-                                     disabled=(len(current) >= max_len)):
-                            _set_pin_state(key_prefix, current + label)
-                            st.rerun()
 
     return st.session_state[pin_key]
 
