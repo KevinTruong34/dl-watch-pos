@@ -698,8 +698,6 @@ def _render_man_thanh_toan():
 
     tam_tinh = _calc_tam_tinh(cart)
 
-    with st.container(key="pos3-section-khach-hang"):
-        _render_section_khach_hang()
     with st.container(key="pos3-section-tom-tat"):
         _render_section_tom_tat(cart, tam_tinh)
     with st.container(key="pos3-section-giam-gia"):
@@ -1193,6 +1191,9 @@ def module_ban_hang():
         _render_man_success()
         return
 
+    with st.container(key="pos1-section-khach-hang"):
+        _render_section_khach_hang()
+    st.markdown("<div style='margin-top:8px;'></div>", unsafe_allow_html=True)
     _render_search_section()
     st.markdown("<div style='margin-top:8px;'></div>", unsafe_allow_html=True)
     _render_cart_section()
