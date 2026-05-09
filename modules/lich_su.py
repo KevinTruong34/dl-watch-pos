@@ -510,7 +510,7 @@ def _render_invoice_card(inv: dict):
                 f"align-items:flex-start;gap:8px;'>"
                 f"<div style='font-family:monospace;font-size:1rem;"
                 f"font-weight:800;color:#1a1a2e;'>{ma_hd}{cancel_tag}</div>"
-                f"<div style='font-size:1.05rem;font-weight:800;color:#e63946;"
+                f"<div style='font-size:1.05rem;font-weight:800;color:#d4af37;"
                 f"white-space:nowrap;'>{fmt_vnd(tien)}</div>"
                 f"</div>"
                 f"<div style='font-size:0.88rem;color:#1a1a2e;margin-top:2px;"
@@ -550,10 +550,10 @@ def _render_pdt_card(pdt: dict):
 
     if cl > 0:
         tien_text = f"+{fmt_vnd(cl)}"
-        tien_color = "#e63946"
+        tien_color = "#1a7f37"
     elif cl < 0:
         tien_text = f"−{fmt_vnd(-cl)}"
-        tien_color = "#1a7f37"
+        tien_color = "#e63946"
     else:
         tien_text = "đổi ngang"
         tien_color = "#888"
@@ -653,7 +653,7 @@ def _render_apsc_card(apsc: dict):
                 f"align-items:flex-start;gap:8px;'>"
                 f"<div style='font-family:monospace;font-size:1rem;"
                 f"font-weight:800;color:#1a1a2e;'>🔧 {ma_hd}{cancel_tag}</div>"
-                f"<div style='font-size:1.05rem;font-weight:800;color:#e63946;"
+                f"<div style='font-size:1.05rem;font-weight:800;color:#d4af37;"
                 f"white-space:nowrap;'>{fmt_vnd(tien)}</div>"
                 f"</div>"
                 f"<div style='font-size:0.88rem;color:#1a1a2e;margin-top:2px;"
