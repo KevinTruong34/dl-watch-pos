@@ -1,15 +1,17 @@
 # AI_CONTEXT.md — DL Watch POS App
 
-**Cập nhật:** 07/05/2026
-**Mục đích:** Bàn giao context đầy đủ cho Claude session mới. POS app đã qua **Bước 1 → Bước 8 + LINE notification + URL session token + APSC display**, đang ở giai đoạn polish và làm thêm tính năng phụ.
+**Cập nhật:** 10/05/2026
+**Mục đích:** Bàn giao context đầy đủ cho Claude session mới. POS app đã qua **Bước 1 → Bước 8 + LINE notification + URL session token + APSC display + SPK/DVPS open-price refactor**, đang ở giai đoạn polish và làm tính năng phụ.
 
 ---
 
 ## QUAN TRỌNG — ĐỌC ĐẦU TIÊN
 
-Đây là dự án **POS app riêng** cho cửa hàng đồng hồ DL Watch, **chia sẻ database** với app quản lý cũ. Đã hoàn thành và deploy production qua **Bước 1 → Bước 8**.
+Đây là dự án **POS app riêng** cho cửa hàng đồng hồ DL Watch, **chia sẻ database** với app quản lý cũ. Đã hoàn thành và deploy production qua **Bước 1 → Bước 8** + nhiều cải tiến tháng 5/2026.
 
 User dùng tiếng Việt, xưng "mình/bạn". Tuân theo `CLAUDE.md` (đã upload lên project knowledge): think before coding, simplicity first, surgical changes, goal-driven execution. **Luôn hỏi clarifying questions trước khi implement, không pick interpretation silently.**
+
+**★ Workflow mới đã proven (lưu trong memory):** 2-phase cho big features — Phase A planning trên Claude in app (front-load decisions → PLAN.md chi tiết), Phase B execute với Claude Code (pre-flight verify, commit từng phase, smoke tests trước INSERT thật). Pattern này thành công với SPK/DVPS refactor + bộ Admin Override (B1, B2a, B2b).
 
 ---
 
@@ -19,10 +21,10 @@ User dùng tiếng Việt, xưng "mình/bạn". Tuân theo `CLAUDE.md` (đã upl
 
 | App | Path | Mục đích | Trạng thái |
 |-----|------|----------|------------|
-| **App quản lý cũ** (legacy) | `web_app/` | Quản trị: hàng hóa, sửa chữa, kiểm kê, báo cáo | Production, đã migrate Hướng B |
+| **App quản lý cũ** (legacy) | `web_app/` | Quản trị: hàng hóa, sửa chữa, kiểm kê, báo cáo, **admin override** | Production, đã migrate Hướng B + Admin features |
 | **POS app mới** | `pos_app/` | Bán hàng tại quầy trên mobile | Production |
 
-Cả 2 deploy lên **Streamlit Cloud** từ 2 GitHub repo riêng. Cùng dùng **Supabase project** (cùng `SUPABASE_URL` + `SUPABASE_KEY`).
+Cả 2 deploy lên **Streamlit Cloud** từ 2 GitHub repo riêng. Cùng dùng **Supabase project**.
 
 Repo: `KevinTruong34/dl-watch-pos` (POS) · `KevinTruong34/DLW_APP` (web app)
 
@@ -32,13 +34,13 @@ Repo: `KevinTruong34/dl-watch-pos` (POS) · `KevinTruong34/DLW_APP` (web app)
 - **Backend:** Supabase PostgreSQL + RPC functions + **Edge Function (Deno/TypeScript)** cho LINE
 - **Deploy:** Streamlit Cloud (private repos, GitHub-linked)
 - **3 chi nhánh:** `100 Lê Quý Đôn` · `Coop Vũng Tàu` · `GO BÀ RỊA`
-- **Daemon in K80:** Windows laptop tại CN 100 LQĐ — Xprinter XP-365B static IP, port 9100
+- **Daemon in K80:** Windows laptop tại CN 100 LQĐ — Xprinter XP-365B static IP, port 9100, **đã raster bitmap mode** (in tiếng Việt OK)
 
 ### Người dùng & quyền
 
 | Role | Quyền POS | Quyền app cũ |
 |------|-----------|--------------|
-| `admin` | Tất cả + hủy HĐ + hủy phiếu đổi/trả + hủy phiếu đặt | Tất cả modules |
+| `admin` | Tất cả + hủy HĐ + hủy phiếu đổi/trả + hủy phiếu đặt | Tất cả modules + **Admin Override (tạo + sửa HĐ tự do)** |
 | `ke_toan` | Bán hàng + lịch sử + đổi/trả + đặt hàng | Báo cáo + xem (không hủy/xóa) |
 | `nhan_vien` | Bán hàng + xem lịch sử CN + đổi/trả (≤7 ngày) + đặt hàng | Hạn chế: hóa đơn, hàng hóa, sửa chữa, chuyển hàng |
 
@@ -57,17 +59,14 @@ Repo: `KevinTruong34/dl-watch-pos` (POS) · `KevinTruong34/DLW_APP` (web app)
 [✓] Bước 7B: Adapter app cũ phản ánh phiếu đổi/trả (AHDD merge)
 [✓] Bước 8: Đặt hàng theo yêu cầu (4 trạng thái + cọc + free-text)
 [✓] LINE Notification: Edge Function + Database Webhook định tuyến CN (POS)
-[✓] LINE Notification mở rộng APSC: Branch 3 trên hoa_don table — DEPLOYED 07/05, đợi test
+[✓] LINE APSC mở rộng: Branch 3 trên hoa_don table — DEPLOYED 07/05
 [✓] Session token: URL params (?t=xxx) — sau khi cookie thất bại 3 vòng
-[✓] APSC display trong POS lich_su: load + search + render từ hoa_don table — TESTED OK
-[✓] Migration Hướng B (web app side): the_kho = single-source-of-truth — POS thừa hưởng
-
-[In Progress]
-[~] Print K80 tiếng Việt: daemon ESC/POS, máy ra CJK → fix codepage
-    - Pattern A: POS lưu UTF-8, daemon encode CP1258 + ESC commands
-    - Issue: Xprinter XP-365B codepage 27 không phải CP1258 chuẩn
-    - Test file test_vn_v2.py chưa chạy, gác lại
-    - Whitelist: PRINT_ENABLED_BRANCHES = {"100 Lê Quý Đôn"} only
+[✓] APSC display trong POS lich_su: load + search + render từ hoa_don table
+[✓] Migration Hướng B (web app side): the_kho = single-source-of-truth
+[✓] Print K80 tiếng Việt: daemon raster bitmap mode (07/05/2026) — solve codepage
+[✓] SPK/DVPS Refactor (08/05/2026): is_open_price flag — POS RPC patched
+[✓] Admin Override (DLW side, 08-09/05/2026): B1 (tạo) + B2a (sửa HĐ POS) + B2b (sửa PDT/SC)
+[✓] APSC K80 + Cancel (10/05/2026): in K80 từ DLW + RPC huy_hoa_don_apsc
 
 [Pending — kỹ thuật phụ]
 [ ] Phương án B (nhớ NV qua localStorage thuần) — UX skip bước chọn tài khoản
@@ -77,11 +76,63 @@ Repo: `KevinTruong34/dl-watch-pos` (POS) · `KevinTruong34/DLW_APP` (web app)
 [ ] Logs thao tác POS app vào action_logs (web app)
 [ ] LINE notification mở rộng (đổi/trả + phiếu đặt hoàn thành)
 [ ] Cache/spinner perf — tech debt
-[ ] use_container_width deprecated sau 2025-12-31 → đổi sang width='stretch' toàn codebase
+[ ] use_container_width deprecated sau 2025-12-31 → đổi width='stretch' toàn codebase
 [ ] Daemon Windows Service thay vì run.bat
 ```
 
 User đã **bỏ KiotViet** — adapter ở Bước 6 handle sẵn.
+
+---
+
+## ★ SPK/DVPS OPEN-PRICE REFACTOR (08/05/2026)
+
+### Vấn đề cũ
+
+24 nhóm dịch vụ cửa hàng dùng nhiều mã rác (vd `SPK001..SPK022`, `DVPS001..DVPS018`) cho cùng 1 dịch vụ chỉ khác giá. Tổng 170 mã rác. NV phải scroll list dài, dễ chọn nhầm.
+
+### Giải pháp — flag `is_open_price`
+
+- Thêm cột `hang_hoa.is_open_price BOOLEAN` (default false, partial index)
+- Mã chuẩn: 25 mã (vd SPK, DVPS, LAUDAU, KSA, DANHBONG, KIEMTRAMAY, THAYIC, THAYDAYDONG, THAYRON, THAYTYNUT, THAYMAYDHDUNG, THAYDAYCOTGIO, THAYDAYTHIEU, THAYBANHXE, THAYCANGCUA, KINHSAPPHIRE, KINHTHUONG, THAYMAYPIN, THAYMAYAUTO, NHATRANG, HIEUCHUAN, GANKIMCOC, THAYCHOT, LAMCHONGNUOC, CATMATDAY, OTUDONG, BMD)
+- Mã có `is_open_price=true` → NV nhập giá tự do tại UI bán hàng
+- Mã có `is_open_price=false` (hàng thường) → giá cố định từ `gia_ban`
+- KHÔNG đụng PIN (TPBG/PV/PDH — cần track tồn) và MDHTT (Thay máy treo tường — master data thực)
+
+### Helpers mới
+
+**SQL:**
+```sql
+CREATE FUNCTION is_open_price_sql(p_ma_hang text) RETURNS boolean
+LANGUAGE sql STABLE AS $$
+    SELECT COALESCE((SELECT is_open_price FROM hang_hoa WHERE ma_hang = p_ma_hang), false);
+$$;
+```
+
+**Python (POS `utils/db.py`):**
+```python
+def is_open_price_item(ma_hang: str, hang_hoa_dict: dict | None = None) -> bool:
+    """Check 1 mã hàng có phải open-price không. Cache qua hang_hoa_dict optional."""
+```
+
+### POS RPC patches
+
+4 RPCs đã update để skip stock check cho open-price (consistent pattern):
+- `tao_hoa_don_pos`
+- `huy_hoa_don_pos`
+- `tao_phieu_doi_tra_pos`
+- `huy_phieu_doi_tra_pos`
+
+Pattern:
+```sql
+IF NOT is_open_price_sql(v_ma_hang) THEN
+    -- check tồn kho + UPDATE the_kho
+END IF;
+```
+
+### POS Module patches
+
+- `pos_app/modules/ban_hang.py`: UI cho phép input giá khi `is_open_price=true`, skip stock check
+- `pos_app/modules/doi_tra.py`: tương tự cho items_moi và items_tra
 
 ---
 
@@ -107,19 +158,20 @@ pos_app/
 │   ├── pos_patch_04_huy_hd_check.sql   # Validate hủy HĐ khi đã có phiếu đổi/trả
 │   ├── pos_patch_05_timezone_fix.sql   # Fix end-of-day VN trong RPC
 │   ├── pos_patch_06_dat_hang.sql       # Bước 8
-│   └── pos_patch_07_session.sql        # Session token + RPC validate
+│   ├── pos_patch_07_session.sql        # Session token + RPC validate
+│   └── pos_patch_08_open_price.sql     # ★ SPK/DVPS open-price (08/05/2026)
 ├── utils/
 │   ├── __init__.py
 │   ├── config.py                       # APP_NAME, ALL_BRANCHES, CN_SHORT, CN_INFO
-│   ├── db.py                           # supabase client + load + RPC + validators + APSC loaders
+│   ├── db.py                           # supabase client + load + RPC + validators + APSC loaders + is_open_price_item
 │   ├── auth.py                         # PIN flow, session URL token, banner
 │   ├── helpers.py                      # now_vn, today_vn, fmt_vnd, end_of_today_vn_iso
-│   └── print_queue.py                  # Daemon-side print enqueue (in dev)
+│   └── print_queue.py                  # Daemon enqueue cho HĐ POS + đổi/trả + đặt hàng
 └── modules/
     ├── __init__.py
-    ├── ban_hang.py                     # Màn 1 → 2 → 3 + hỗ trợ tạo HĐ từ phiếu đặt
+    ├── ban_hang.py                     # Màn 1 → 2 → 3 + open-price input UI + bypass stock cho open-price
     ├── lich_su.py                      # List HĐ + AHDD merge + APSC display + modal chi tiết + hủy
-    ├── doi_tra.py                      # Bước 7: đổi/trả full-screen + dialog AHDD
+    ├── doi_tra.py                      # Bước 7: đổi/trả + open-price logic
     └── dat_hang.py                     # Bước 8: 4 trạng thái phiếu đặt
 ```
 
@@ -131,89 +183,59 @@ pos_app/
 
 | Table | Mô tả |
 |-------|-------|
-| `nhan_vien` | id, username, ho_ten, role, active |
+| `nhan_vien` | id, username, ho_ten, role, active. **role='admin'** dùng cho admin override (DLW) |
 | `nhan_vien_chi_nhanh` | Phân quyền CN |
 | `chi_nhanh` | 3 CN |
-| `hang_hoa` | Master sản phẩm. Cột `loai_sp` ("Hàng hóa"/"Dịch vụ") + `active` |
+| `hang_hoa` | Master sản phẩm. **★ Cột mới `is_open_price BOOLEAN`** + `loai_sp`, `active` |
 | `the_kho` | **Tồn kho LIVE (SSOT sau Hướng B)** — `Mã hàng`, `Chi nhánh`, `Tồn cuối kì` |
 | `khach_hang` | Unique key `sdt`. `tong_ban` cộng dồn KiotViet + POS + AHDD chenh_lech |
-| `sessions` | Session token (đã mở rộng — xem Session Token Architecture) |
-| `hoa_don` | HĐ KiotViet legacy + **APSC sửa chữa từ web app** (denormalized) |
-| `phieu_sua_chua` / `_chi_tiet` | Phiếu sửa chữa |
+| `sessions` | Session token |
+| `hoa_don` | HĐ KiotViet legacy + **APSC sửa chữa từ web app** (denormalized, cột tiếng Việt) |
+| `phieu_sua_chua` / `_chi_tiet` | Phiếu sửa chữa. **Cột mới: `is_admin_created`, `admin_note`, `created_by_id`** |
+| `print_queue` | **Cột mới: `source_app` (default 'pos_app')** — DLW dùng `'dlw_app'` |
+| `admin_edit_history` | **★ Bảng mới (B2a)** — snapshot before/after JSONB cho mọi edit của admin |
 | `phieu_chuyen_kho`, `phieu_nhap_hang`, `phieu_kiem_ke`, ... | App cũ |
 
-### Table riêng của POS
+### Table riêng của POS (không đổi)
 
 ```sql
--- pin_code: PIN bcrypt cho mỗi NV
-pin_code (
-    nhan_vien_id  bigint PRIMARY KEY,
-    pin_hash      text NOT NULL,
-    updated_at    timestamptz
-)
-
--- hoa_don_pos: header HĐ POS (1 dòng/HĐ)
-hoa_don_pos (
-    ma_hd            text PRIMARY KEY,         -- AHD000001
-    chi_nhanh        text,
-    ma_kh, ten_khach, sdt_khach,
-    tong_tien_hang, giam_gia_don, khach_can_tra,
-    tien_mat, chuyen_khoan, the, tien_thua,
-    tien_coc_da_thu  integer,                  -- BƯỚC 8: cọc đã thu từ phiếu đặt
-    trang_thai       text,                     -- "Hoàn thành" | "Đã hủy"
-    nguoi_ban, nguoi_ban_id, ghi_chu,
-    created_at, cancelled_by, cancelled_at,
-    ma_pdh           text                      -- BƯỚC 8: link tới phieu_dat_hang nếu có
-)
-
-hoa_don_pos_ct (...)
-
--- BƯỚC 7: đổi/trả
-phieu_doi_tra_pos (
-    ma_pdt           text PRIMARY KEY,         -- AHDD000001
-    ma_hd_goc        text REFERENCES hoa_don_pos(ma_hd),
-    ...
-)
-phieu_doi_tra_pos_ct (...)
-
--- BƯỚC 8: đặt hàng theo yêu cầu
-phieu_dat_hang (
-    ma_pdh           text PRIMARY KEY,         -- AHDC000001
-    ten_hang_yeu_cau text,                     -- free-text mô tả
-    so_luong, gia_du_kien, tien_coc,
-    pttt_coc_tien_mat, pttt_coc_chuyen_khoan, pttt_coc_the integer,
-    trang_thai       text,                     -- "Chờ đặt" | "Chờ lấy" | "Hoàn thành" | "Đã hủy"
-    ngay_du_kien_co, ghi_chu,
-    nguoi_tao, nguoi_tao_id,
-    created_at, updated_at,
-    cancelled_by, cancelled_at, ly_do_huy,
-    ma_hd            text                      -- link tới hoa_don_pos khi Hoàn thành
-)
-
--- Sequences
-CREATE SEQUENCE ahd_seq START 1;     -- AHD HĐ POS
-CREATE SEQUENCE ahdd_seq START 1;    -- AHDD phiếu đổi/trả
-CREATE SEQUENCE ahdc_seq START 1;    -- AHDC phiếu đặt hàng
+-- pin_code, hoa_don_pos, hoa_don_pos_ct, phieu_doi_tra_pos, phieu_doi_tra_pos_ct, phieu_dat_hang
+-- Cột mới (từ B1 admin override): is_admin_created, admin_note ở 3 bảng
+--   hoa_don_pos, phieu_doi_tra_pos, phieu_sua_chua
 ```
 
-### RPC functions của POS
+### Sequences POS (không đổi)
 
-**HĐ POS:**
-- `tao_hoa_don_pos(payload jsonb) → jsonb` — atomic create với `bypass_stock_check` cho HĐ từ phiếu đặt (Bước 8)
-- `huy_hoa_don_pos(p_ma_hd, p_cancelled_by) → jsonb` — atomic cancel, hoàn tồn kho, **block nếu HĐ đã có phiếu đổi/trả Hoàn thành**
-- `get_next_ahd_num() → bigint`
+```sql
+ahd_seq    -- AHD HĐ POS
+ahdd_seq   -- AHDD phiếu đổi/trả
+ahdc_seq   -- AHDC phiếu đặt hàng
+sc_seq     -- ★ MỚI (B1): cho phiếu sửa chữa, race-safe (Python cũng dùng nextval)
+```
 
-**Đổi/Trả:** `tao_phieu_doi_tra_pos`, `huy_phieu_doi_tra_pos`
+### RPC functions của POS (đã update)
+
+**HĐ POS (đã patch open-price 08/05):**
+- `tao_hoa_don_pos(payload jsonb)` — skip stock check cho open-price
+- `huy_hoa_don_pos(p_ma_hd, p_cancelled_by)` — chỉ hoàn kho hàng thường
+- `get_next_ahd_num()`
+
+**Đổi/Trả (đã patch open-price):** `tao_phieu_doi_tra_pos`, `huy_phieu_doi_tra_pos`
 
 **Đặt hàng:** `tao_phieu_dat_hang`, `cap_nhat_trang_thai_phieu_dat`, `hoan_thanh_phieu_dat_hang`, `huy_phieu_dat_hang`
 
 **Session:** `create_session`, `validate_session`, `revoke_user_sessions`, `revoke_session_by_token`
 
-**Stock writes (Hướng B - chia với web app):** `xac_nhan_chuyen_hang`, `nhan_hang`, `duyet_phieu_kiem_ke` — atomic, lock + validate + apply trực tiếp `the_kho`. Xem web app AI_CONTEXT.
+**Stock writes (Hướng B):** `xac_nhan_chuyen_hang`, `nhan_hang`, `duyet_phieu_kiem_ke`
+
+**★ Helper RPCs mới (chia với DLW):**
+- `is_open_price_sql(p_ma_hang)` — SQL helper cho open-price detection
+- `next_sc_seq()` — wrapper Python dùng nextval('sc_seq')
+- (Admin RPCs — xem AI_CONTEXT.md web app)
 
 ---
 
-## QUYẾT ĐỊNH NGHIỆP VỤ ĐÃ CHỐT (đã rút gọn — chi tiết xem session sử)
+## QUYẾT ĐỊNH NGHIỆP VỤ ĐÃ CHỐT (rút gọn)
 
 ### Bước 7 — Đổi/Trả
 
@@ -227,53 +249,29 @@ Hỗ trợ Trả / Đổi ngang / Đổi có chênh lệch / Trả 1 phần · G
 
 4 trạng thái Chờ đặt → Chờ lấy → Hoàn thành (+ Đã hủy), có thể skip Chờ lấy · Cọc lưu chi tiết PTTT 3 cột · Tên hàng free-text, không đụng `hang_hoa` · RPC `bypass_stock_check=true` khi tạo HĐ từ phiếu đặt · Cho sửa giá lúc Hoàn thành · Admin được hủy với option Trả cọc / Giữ cọc · Mã `AHDC`, sequence `ahdc_seq` · Khi Hoàn thành tạo `hoa_don_pos` link qua `ma_pdh`.
 
-### LINE Notification (đã mở rộng 07/05/2026)
+### LINE Notification
 
-**Architecture:** Event-driven Edge Function (Deno/TypeScript) tên `line-notify`. **Python KHÔNG gọi LINE trực tiếp** — chỉ INSERT vào DB, webhook tự fire.
+**Architecture:** Event-driven Edge Function (Deno/TypeScript) tên `line-notify`. Python KHÔNG gọi LINE trực tiếp. Database webhook → Edge Function → LINE Push API.
 
-**3 nhánh hiện tại:**
+**3 nhánh:**
 - **Branch 1:** webhook trên `phieu_doi_tra_pos` INSERT → đổi/trả notification
-- **Branch 2:** webhook trên `hoa_don_pos` INSERT → HĐ POS (kèm phân loại VIP ≥10M / hàng đặt AHDC / thường), `setTimeout(1500)` chờ ghi xong `hoa_don_pos_ct` rồi fetch chi tiết
-- **Branch 3 (07/05/2026):** webhook trên `hoa_don` INSERT → APSC sửa chữa
-  - Lọc `record["Mã hóa đơn"]` startsWith `'APSC'`, bỏ qua HĐ KiotViet khác
-  - **Dedupe:** 1 APSC = N rows (mỗi item 1 row, denormalized KiotViet schema). Chỉ row có id thấp nhất gửi LINE. Race-free vì AFTER ROW trigger fire post-commit.
-  - Code: `supabase.from('hoa_don').select('id').eq('Mã hóa đơn', maHd).lt('id', record.id).limit(1)` — nếu có row → skip
-  - Đợi 1.5s rồi query toàn bộ rows cùng `ma_hd` để build danh sách dịch vụ
-  - Đọc theo cột tiếng Việt có dấu (KiotViet schema): `record["Chi nhánh"]`, `record["Tổng tiền hàng"]`, etc.
+- **Branch 2:** webhook trên `hoa_don_pos` INSERT → HĐ POS với phân loại VIP ≥10M / hàng đặt AHDC / thường
+- **Branch 3:** webhook trên `hoa_don` INSERT → APSC sửa chữa (dedupe race-free qua `lt id`)
 
-**Định tuyến CN:** Cấu hình cứng trong code TS:
-- `100 LQĐ` + `GO BÀ RỊA` → cùng group `LINE_GROUP_BARIA`
-- `Coop Vũng Tàu` → return 200, skip (chưa có group)
-
-**Auto-response messages** trên LINE Manager đã **tắt** (tránh bot spam).
+**Định tuyến CN:** `100 LQĐ` + `GO BÀ RỊA` → cùng group `LINE_GROUP_BARIA`. `Coop Vũng Tàu` skip.
 
 ### Session Token Architecture
 
-Sau 4 vòng cookie thất bại → URL params `?t=xxx&b=xxx`. NV phải nhập PIN mỗi sáng (~5 giây).
+URL params `?t=xxx&b=xxx`. NV nhập PIN mỗi sáng. Token expire cuối ngày VN. Logout = revoke ALL sessions cross-device.
 
-- **LS-1:** Token expire cuối ngày VN
-- **LS-2:** Logout = revoke ALL sessions cross-device (cùng NV)
-- **LS-3:** Admin web app xem session active (chưa làm UI, chỉ có DB schema)
-- **LS-4:** Cho phép nhiều thiết bị cùng login 1 NV
-- **LS-5:** ~~localStorage~~ → URL params
+### APSC Display trong POS lich_su
 
-**SQL Patch 07** (`pos_patch_07_session.sql`): ALTER `sessions` thêm `last_used_at`, `user_agent`, `revoked_at`, indexes; 4 RPC.
+POS hiển thị HĐ APSC từ `hoa_don` table (read-only, không có nút Hủy/Đổi/In). 3 nguồn merged trong lich_su:
+- `load_hoa_don_pos_history` → AHD
+- `load_phieu_doi_tra_pos_history` → AHDD
+- `load_apsc_history` → APSC
 
-### APSC Display trong POS lich_su (07/05/2026 — TESTED OK)
-
-**Yêu cầu:** Khách counter cần xem cả lịch sử mua hàng + lịch sử sửa chữa. APSC được web app `_tao_hoa_don_apsc` insert vào `hoa_don` table (không phải `hoa_don_pos`).
-
-**Implementation:**
-- POS `utils/db.py` thêm 3 hàm:
-  - `_build_apsc_dict(ma_hd, rows)` — group N rows denormalized → 1 dict với schema khớp `hoa_don_pos`. Parse "Thời gian" "DD/MM/YYYY HH:MM:SS" → ISO + tzinfo VN.
-  - `load_apsc_history(chi_nhanh, from_date_iso, limit=100)` — load APSC, group, filter date in-Python
-  - `search_apsc(keyword, branches, limit=30)` — full-text search trên ma_hd + sdt + ten_khach
-- POS `modules/lich_su.py`:
-  - Import 2 hàm trên
-  - `_render_apsc_card(apsc)` — badge cam "🔧 Sửa chữa", icon 🔧 trước mã HĐ, link "từ {ma_ycsc}"
-  - `@st.dialog _dialog_chi_tiet_apsc(apsc)` — read-only, không có nút Đổi/Trả/Hủy/In
-  - `module_lich_su()` merge APSC vào `all_items` với `_type="apsc"`, route renderer theo type
-  - `_render_find_results()` cũng search APSC, merge với HĐ POS
+**★ Lưu ý sau APSC K80 (10/05/2026):** Nút "In lại" + "Hủy HĐ" cho APSC đặt trên **DLW** (không POS). POS chỉ hiển thị read-only.
 
 ---
 
@@ -290,7 +288,7 @@ Sau 4 vòng cookie thất bại → URL params `?t=xxx&b=xxx`. NV phải nhập 
 | D7 | Hủy HĐ: chỉ admin, bất kỳ lúc nào | User chọn |
 | D8 | HĐ đã hủy: hiện xám trong list | User chọn |
 | D9 | "Xem cũ hơn" lịch sử: +1 ngày/click | User chọn |
-| D10 | In K80: kiến trúc Cloud-to-LAN spooler | In progress (codepage issue) |
+| D10 | In K80: kiến trúc Cloud-to-LAN spooler | ✅ Đã solve (raster bitmap 07/05) |
 | D11 | Bước 6: tách prefix APSC / AHD / KiotViet | User chọn |
 | D12 | Sau bỏ KiotViet: không cần code thay đổi | Adapter tự thích nghi |
 | D13 | Bước 7 prefix `AHDD`, sequence riêng | Tách bạch HĐ POS |
@@ -301,36 +299,39 @@ Sau 4 vòng cookie thất bại → URL params `?t=xxx&b=xxx`. NV phải nhập 
 | D18 | Bước 8: free-text tên hàng, không đụng `hang_hoa` | Hàng yêu cầu thường chưa có trong DB |
 | D19 | Bước 8: RPC `bypass_stock_check` cho HĐ từ phiếu đặt | Hàng free-text không có `the_kho` |
 | D20 | Bước 8: cọc lưu chi tiết PTTT (3 cột) | Báo cáo chính xác |
-| D21 | LINE Edge Function: `setTimeout(1500)` chờ ghi `_ct` | Streamlit ghi tuần tự, header xong trước chi tiết |
+| D21 | LINE Edge Function: `setTimeout(1500)` chờ ghi `_ct` | Streamlit ghi tuần tự |
 | D22 | Session token URL params (sau 4 vòng cookie thất bại) | An toàn 100% > UX persist |
-| D23 | LINE Branch 3 APSC: dedupe bằng `lt id` check | Race-free, no schema change |
-| D24 | APSC display trong POS lich_su: read-only, không Hủy/In/Đổi | APSC sống ở web app, POS chỉ tham khảo |
-| D25 | Hướng B (web app side): `the_kho` = SSOT | POS thừa hưởng — RPC POS đã ghi trực tiếp `the_kho` từ đầu |
+| D23 | LINE Branch 3 APSC: dedupe `lt id` check | Race-free, no schema change |
+| D24 | APSC display trong POS lich_su: read-only, KHÔNG Hủy/In/Đổi | Action đặt trên DLW (10/05) |
+| D25 | Hướng B: `the_kho` = SSOT | POS thừa hưởng |
 | D26 | Logs thao tác POS chưa ghi vào `action_logs` | Pending |
+| **D27** | **★ SPK/DVPS: flag `is_open_price` thay convention OR-list** | Future-proof, server-side check, scalable |
+| **D28** | **★ Admin Override (DLW): `nhan_vien.role='admin'` server-side check** | Reuse cột sẵn có, không tạo permission table |
+| **D29** | **★ APSC K80 + Cancel: in K80 + nút action đặt trên DLW (KHÔNG POS)** | Tránh duplicate code 2 repo, scope hẹp |
+| **D30** | **★ `print_queue.source_app`: distinguish 'pos_app' vs 'dlw_app'** | Trace nguồn gốc job in |
 
 ---
 
 ## CÁC FILE QUAN TRỌNG VÀ NỘI DUNG CHÍNH
 
-### `utils/db.py` (POS) — đã thêm APSC functions
+### `utils/db.py` (POS) — đã thêm helpers + APSC functions
 
 ```python
-# Helpers (cache 5min unless noted)
+# Existing helpers
 load_nhan_vien_active()
 load_pin(nv_id) / set_pin(nv_id, pin_hash)
 load_hang_hoa_pos(chi_nhanh)             # Dịch vụ: ton=999999 vô hạn
 
 # Khách hàng
 lookup_khach_hang_by_sdt(sdt)
-upsert_khach_hang(ten, sdt, chi_nhanh)   # tự sinh AKH nếu mới
-clean_phone(s) / clean_name(s)
+upsert_khach_hang(ten, sdt, chi_nhanh)
 
 # HĐ POS
 load_hoa_don_pos_history(chi_nhanh, from_date_iso)
 tao_hoa_don_pos_rpc(payload)
 huy_hoa_don_pos_rpc(ma_hd, cancelled_by)
 
-# Đổi/Trả (Bước 7)
+# Đổi/Trả
 search_hoa_don_pos(keyword, chi_nhanh_list, limit=30)
 load_hoa_don_pos_by_ma(ma_hd)
 load_phieu_doi_tra_by_hd(ma_hd_goc)
@@ -339,121 +340,69 @@ load_phieu_doi_tra_pos_history(chi_nhanh, from_date)
 tao_phieu_doi_tra_pos_rpc(payload)
 huy_phieu_doi_tra_pos_rpc(ma_pdt, cancelled_by)
 
-# Đặt hàng (Bước 8)
+# Đặt hàng
 load_phieu_dat_hang(chi_nhanh, trang_thai_filter=None)
 tao_phieu_dat_hang_rpc(payload)
 cap_nhat_trang_thai_phieu_dat_rpc(...)
 hoan_thanh_phieu_dat_hang_rpc(payload)
 huy_phieu_dat_hang_rpc(ma_pdh, cancelled_by, ly_do_huy)
 
-# Session (URL token)
+# Session
 create_session_rpc(nv_id, user_agent)
 validate_session_rpc(token)
 revoke_user_sessions_rpc(nv_id)
 revoke_session_by_token_rpc(token)
 
-# APSC display (07/05/2026 - đọc từ hoa_don table KiotViet schema)
-_build_apsc_dict(ma_hd, rows)            # Group N rows → 1 dict, parse "DD/MM/YYYY HH:MM:SS" → ISO
+# APSC display
+_build_apsc_dict(ma_hd, rows)
 load_apsc_history(chi_nhanh, from_date_iso=None, limit=100)
 search_apsc(keyword, branches, limit=30)
+
+# ★ MỚI: Open-price helper (08/05/2026)
+is_open_price_item(ma_hang, hang_hoa_dict=None) -> bool
 ```
 
-### `utils/auth.py` (POS) — URL session token
+### `modules/ban_hang.py` (★ patched 08/05)
 
-(không thay đổi — xem session sử)
+UI cart: nếu item có `is_open_price=true` → render `st.number_input` cho đơn giá editable. Stock check skip cho open-price (consistent với RPC).
 
-### `app.py` (POS)
+### `modules/doi_tra.py` (★ patched 08/05)
 
-(không thay đổi — xem session sử)
+Tương tự `ban_hang.py` cho items_moi và items_tra. Open-price không cần check stock khi đổi.
 
-### `modules/ban_hang.py`
+### `modules/lich_su.py`
 
-(không thay đổi — xem session sử)
+3 sources merged (HĐ POS + AHDD + APSC). APSC dialog **read-only** (không Hủy/Đổi/In). User in lại / hủy APSC qua DLW app.
 
-### `modules/lich_su.py` (07/05/2026 — đã mở rộng APSC)
+### `utils/print_queue.py`
 
-State: `st.session_state["lichsu_days_back"]` (mặc định 0)
+POS public API:
+- `enqueue_hoa_don(ma_hd, created_by)` — doc_type='hoa_don', source_app='pos_app'
+- `enqueue_phieu_dat(ma_pdh, created_by)` — doc_type='phieu_dat_hang'
+- `enqueue_phieu_doi_tra(ma_pdt, created_by)` — doc_type='phieu_doi_tra'
 
-**Sources merged trong `module_lich_su`:**
-- `load_hoa_don_pos_history` → AHD (HĐ POS)
-- `load_phieu_doi_tra_pos_history` → AHDD (đổi/trả)
-- `load_apsc_history` → APSC (sửa chữa, từ hoa_don table)
-
-**Items list:** `[{"_type": "hd"|"pdt"|"apsc", **data}]`, sort newest-first by `_parse_iso(created_at)`. Ẩn HĐ + phiếu + APSC `trang_thai="Đã hủy"`.
-
-**Renderers:**
-- `_render_invoice_card(inv)` — HĐ POS, badge xanh "Hoàn thành"
-- `_render_pdt_card(pdt)` — đổi/trả, badge tùy loại, hiển thị chenh_lech màu
-- `_render_apsc_card(apsc)` — APSC, badge cam "🔧 Sửa chữa", link "từ {ma_ycsc}"
-
-**Modals (top-level via session_state pattern):**
-- `_dialog_chi_tiet(inv)` — HĐ POS, có nút Đổi/Trả + Hủy (admin) + In lại
-- `dialog_chi_tiet_pdt(pdt)` — đổi/trả, từ module doi_tra
-- `_dialog_chi_tiet_apsc(apsc)` — APSC, **read-only** (không Hủy/Đổi/In)
-
-**Pending dialog handlers ở đầu `module_lich_su`:** `lichsu_confirm_huy` (HĐ POS), `pdt_confirm_huy`, `lichsu_view_pdt`, `lichsu_view_apsc`.
-
-**Search range:** ô tìm SĐT/Mã (mọi ngày) → `_render_find_results(kw)` chạy `search_hoa_don_pos` + `search_apsc`, merge sort.
-
-**Bug history fix:** Form Tạo mới reset (counter pattern), HĐ POS từ phiếu đặt hiện cọc, `dict.DataFrame` (rename pd loop), IndentationError 681.
-
-### `modules/doi_tra.py`, `modules/dat_hang.py`
-
-(không thay đổi — xem session sử)
-
-### `utils/print_queue.py` (in progress)
-
-- `PRINT_ENABLED_BRANCHES = {"100 Lê Quý Đôn"}` — whitelist
-- 3 builders trả text Vietnamese UTF-8 thuần (POS không encode, daemon lo encoding)
-- Pattern A: POS lưu UTF-8, daemon Windows encode CP1258 + ESC/POS commands
-- **Issue chưa giải quyết:** Xprinter XP-365B với `ESC t 27` (codepage Vietnam) không interpret CP1258 chuẩn — bytes 0xEA, 0xCC, 0xF2, 0xD0 ra ký tự Việt sai (precomposed thay vì combining)
-- **Test pending:** test_vn_v2.py thử 6 combo codepage (27/30/32/16/52, có/không ESC R 0)
-- **Backup phương án:** render text → bitmap PNG via PIL + Vietnamese font, gửi qua ESC/POS GS v 0 (raster) — tránh codepage hoàn toàn
+**Note:** APSC được enqueue từ DLW (`web_app/utils/print_queue_apsc.py`), KHÔNG phải POS.
 
 ---
 
 ## CÁC PATTERN KỸ THUẬT QUAN TRỌNG
 
 ### 1. Mobile column stacking fix (CSS scoped)
-
-```python
-_CSS = """<style>
-.st-key-{ZONE} div[data-testid="stHorizontalBlock"] {
-    flex-direction: row !important;
-    flex-wrap: nowrap !important;
-}
-.st-key-{ZONE} div[data-testid="stHorizontalBlock"] > div {
-    min-width: 0 !important;
-}
-</style>"""
-```
+(không đổi — xem session sử)
 
 ### 2. Numeric keyboard global (MutationObserver)
-
-Inject 1 lần ở app.py: input/textarea trong container `st-key-numkb-*` → tự set inputmode="numeric" hoặc "tel". Pattern: `st.container(key="numkb-XXX")` hoặc `st.container(key="numkb-tel-XXX")`.
+(không đổi)
 
 ### 3. Timezone
-
-`ZoneInfo("Asia/Ho_Chi_Minh")` cho VN time. Supabase lưu `timestamptz` UTC. **Phải convert về VN** trước `strftime`. `_to_vn()` helper handle naive datetime.
+`ZoneInfo("Asia/Ho_Chi_Minh")` cho VN time. Supabase lưu `timestamptz` UTC. **Phải convert về VN** trước `strftime`.
 
 ### 4. Streamlit toast icon
-
-Phải emoji thật, không Unicode "Check Mark" (✓ ✗). Dùng ✅ ❌.
+Phải emoji thật (✅ ❌), không Unicode "Check Mark" (✓ ✗).
 
 ### 5. Dialog state pattern (top-level, tránh nested @st.dialog)
-
-```python
-pending = st.session_state.get("lichsu_confirm_huy")
-if pending:
-    _dialog_confirm_huy(pending)
-
-# Trong modal khi user bấm Hủy:
-st.session_state["lichsu_confirm_huy"] = inv
-st.rerun()
-```
+(không đổi)
 
 ### 6. Cache invalidation sau ghi DB
-
 ```python
 load_hang_hoa_pos.clear()
 load_phieu_doi_tra_pos_history.clear()
@@ -461,24 +410,15 @@ load_phieu_dat_hang.clear()
 ```
 
 ### 7. Reset counter pattern cho form
-
-```python
-rk = st.session_state.get("dh_form_reset_cnt", 0)
-ten = st.text_input("Tên hàng", key=f"dh_ten_{rk}")
-# Sau lưu OK:
-st.session_state["dh_form_reset_cnt"] = rk + 1
-st.rerun()
-```
+(không đổi)
 
 ### 8. Sanity check syntax trước push
-
 ```bash
 python3 -c "import ast; ast.parse(open('modules/X.py').read())"
 ```
 
-### 9. APSC schema mapping (07/05/2026)
-
-`hoa_don` table dùng cột tiếng Việt có dấu (KiotViet schema). Đọc qua subscript:
+### 9. APSC schema mapping
+`hoa_don` table dùng cột tiếng Việt có dấu (KiotViet schema):
 ```python
 head["Mã hóa đơn"]    # NOT head.ma_hd
 head["Chi nhánh"]
@@ -487,62 +427,26 @@ head["Người bán"]
 head["Mã YCSC"]
 ```
 
-Edge Function TypeScript cũng dùng cách này: `record["Chi nhánh"]`.
+### 10. ★ Open-price detection pattern (mới)
 
-`_tao_hoa_don_apsc` insert N rows (1 row/item) → cần dedupe khi xử lý event-driven.
+```python
+# Python
+from utils.db import is_open_price_item
+if is_open_price_item(ma_hang):
+    # input giá tự do, skip stock check
+```
+
+```sql
+-- SQL trong RPC
+IF NOT is_open_price_sql(v_ma_hang) THEN
+    -- check tồn kho + UPDATE the_kho
+END IF;
+```
 
 ---
 
 ## CONSTANTS & SECRETS
-
-### POS `utils/config.py`
-
-```python
-APP_NAME = "DL Watch POS"
-ALL_BRANCHES = ["100 Lê Quý Đôn", "Coop Vũng Tàu", "GO BÀ RỊA"]
-CN_SHORT = {
-    "100 Lê Quý Đôn": "100 LQĐ",
-    "Coop Vũng Tàu":  "Coop VT",
-    "GO BÀ RỊA":      "GO BR",
-}
-CN_INFO = { ... }  # đầy đủ địa chỉ + SĐT
-```
-
-### Streamlit secrets
-
-```toml
-SUPABASE_URL = "https://xxxxx.supabase.co"
-SUPABASE_KEY = "xxxxx"
-```
-
-### Supabase Edge Function secrets (LINE)
-
-```
-LINE_TOKEN        = "xxx"               # bearer token bot
-LINE_GROUP_BARIA  = "Cxxxxxx"           # group cho 100 LQĐ + GO BR
-SUPABASE_URL      = "..."
-SUPABASE_ANON_KEY = "..."               # service role không cần — dùng anon
-```
-
-### Daemon `.env` (Windows laptop LQĐ)
-
-```
-SUPABASE_URL = "..."
-SUPABASE_SERVICE_ROLE_KEY = "..."       # daemon dùng service role để poll print_queue
-PRINTER_IP = "192.168.x.x"
-PRINTER_PORT = 9100
-```
-
-### `requirements.txt`
-
-```
-streamlit>=1.36.0
-supabase>=2.0.0
-bcrypt>=4.0.0
-pandas>=2.0.0
-```
-
-(Đã bỏ `streamlit-local-storage`, `streamlit-cookies-controller`, `extra-streamlit-components` sau khi switch về URL params.)
+(không đổi — xem session sử)
 
 ---
 
@@ -558,6 +462,7 @@ pandas>=2.0.0
 - Khi user hỏi clarification, dùng `ask_user_input_v0` cho options nhanh
 - Patches dạng search-replace inline để user apply tay (file > 500 dòng không rewrite full)
 - Recommend pattern atomic RPC + verify Supabase queries trước khi sửa
+- **★ Workflow lớn: 2-phase A planning + B execute với Claude Code** (proven trên SPK/DVPS, B1, B2a, B2b)
 
 ---
 
@@ -578,10 +483,12 @@ Claude session mới nên:
 
 | # | Item | Trạng thái | Note |
 |---|------|------------|------|
-| 1 | LINE Branch 3 APSC notification | Đã deploy, chưa test | User: "đợi kết quả khi có hóa đơn phiếu sửa sau" |
-| 2 | Print K80 tiếng Việt — tìm codepage đúng | In progress | Test test_vn_v2.py 6 combo, hoặc fallback raster PNG |
-| 3 | Performance perf | Pending | Web app side, ảnh hưởng cả 2 app |
-| 4 | LINE notification mở rộng | Pending | Đổi/trả + phiếu đặt hoàn thành (đã có Branch 1 đổi/trả, chỉ chưa nâng cao) |
+| 1 | LINE notification mở rộng | Pending | Đổi/trả + phiếu đặt hoàn thành |
+| 2 | Performance perf | Pending | Web app side, ảnh hưởng cả 2 app |
+| 3 | Logs thao tác POS app vào `action_logs` | Pending | Lower priority |
+| 4 | UI admin xem session POS active | Pending | DB schema có sẵn (LS-3) |
+| 5 | `use_container_width` deprecated | Pending | Cần đổi width='stretch' toàn codebase trước 31/12/2025 |
+| 6 | Daemon Windows Service thay run.bat | Pending | Auto-start không cần manual |
 
 ---
 
@@ -592,14 +499,16 @@ Claude session mới nên:
 | `Chưa cấu hình SUPABASE_URL` | Streamlit secrets thiếu | Set Streamlit Cloud → Secrets |
 | Bàn phím chữ thay vì số ở PIN | MutationObserver chưa inject | Hard refresh (Ctrl+Shift+R) |
 | `Lỗi tạo hóa đơn: tồn không đủ` | Race / tồn = 0 | Refresh, check `the_kho` |
-| Banner session sai giờ | Strftime trên UTC | Đã fix Bước 5: `.astimezone(...)` |
+| Banner session sai giờ | Strftime trên UTC | Đã fix Bước 5 |
 | `st.toast` báo lỗi icon | Unicode thay vì emoji | `✓` → `✅` |
 | HĐ POS không hiện app cũ | Cache 5 phút | Bấm "↺ Tải lại" |
-| LINE không nhận thông báo | Edge Function lỗi hoặc Group ID sai | Check Supabase logs > Edge Functions > line-notify |
-| Multi-NV cùng login do share URL | URL chứa `?t=...` cũ | Mở URL gốc (không có query) → màn login |
+| LINE không nhận thông báo | Edge Function lỗi hoặc Group ID sai | Check Supabase logs > Edge Functions |
+| Multi-NV cùng login do share URL | URL chứa `?t=...` cũ | Mở URL gốc → màn login |
 | HĐ từ phiếu đặt báo "không đủ tồn" | RPC quên `bypass_stock_check=true` | Patch 06 đã fix |
-| APSC LINE gửi 3 tin/HĐ | Dedupe lt id không match | Check `hoa_don` có cột `id` PK không |
-| In K80 ra CJK | Máy in default Kanji mode | Sequence: ESC @ + FS . + ESC R 0 + ESC t 27 |
+| APSC LINE gửi 3 tin/HĐ | Dedupe lt id không match | Check `hoa_don` có cột `id` PK |
+| In K80 ra CJK/lỗi tiếng Việt | Codepage không match | ✅ Đã solve qua raster bitmap (07/05) |
+| **★ Open-price hàng vẫn check kho** | RPC chưa patch | Verify RPC có dùng `is_open_price_sql()` |
+| **★ POS RPC fail "duplicate ma_phieu"** | Race với SC seq | Đã fix dùng `nextval('sc_seq')` (08/05) |
 
 ---
 
