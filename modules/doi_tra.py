@@ -351,8 +351,19 @@ def _render_section_moi(chi_nhanh: str):
     with st.expander("🔍 Tìm hàng hóa", expanded=(len(cart) == 0)):
         rk = st.session_state.get("doi_tra_search_reset_cnt", 0)
         # 2-col: search input | icon 📷 scan. Scan button khóa 48×48px qua CSS.
+        # Force horizontal flex — Streamlit mặc định stack columns trên
+        # màn hẹp khi không có hint horizontal.
         st.markdown(
             """<style>
+            .st-key-dt-search-row div[data-testid="stHorizontalBlock"] {
+                flex-direction: row !important;
+                flex-wrap: nowrap !important;
+                gap: 8px !important;
+                align-items: center !important;
+            }
+            .st-key-dt-search-row div[data-testid="stHorizontalBlock"] > div {
+                min-width: 0 !important;
+            }
             .st-key-dt-scan-btn-wrap [data-testid="stBaseButton-secondary"] {
                 width: 48px !important;
                 min-width: 48px !important;
@@ -364,19 +375,20 @@ def _render_section_moi(chi_nhanh: str):
             </style>""",
             unsafe_allow_html=True,
         )
-        c_input, c_scan = st.columns([5, 1])
-        with c_input:
-            keyword = st.text_input(
-                "Search input",
-                placeholder="Gõ mã hoặc tên hàng...",
-                key=f"dt_search_kw_{rk}",
-                label_visibility="collapsed",
-            )
-        with c_scan:
-            with st.container(key="dt-scan-btn-wrap"):
-                if st.button("📷", key="dt_scan_btn",
-                             help="Quét mã vạch"):
-                    _dialog_quet_ma_vach_doi_tra(chi_nhanh)
+        with st.container(key="dt-search-row"):
+            c_input, c_scan = st.columns([5, 1])
+            with c_input:
+                keyword = st.text_input(
+                    "Search input",
+                    placeholder="Gõ mã hoặc tên hàng...",
+                    key=f"dt_search_kw_{rk}",
+                    label_visibility="collapsed",
+                )
+            with c_scan:
+                with st.container(key="dt-scan-btn-wrap"):
+                    if st.button("📷", key="dt_scan_btn",
+                                 help="Quét mã vạch"):
+                        _dialog_quet_ma_vach_doi_tra(chi_nhanh)
         if keyword.strip():
             results = _search_hang_hoa(keyword, hh_list, max_results=3)
             if not results:
