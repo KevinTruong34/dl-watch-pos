@@ -489,6 +489,22 @@ def _dialog_quet_ma_vach(chi_nhanh: str):
         # Dialog stay open
         return
 
+    # Chặn vượt tồn: nếu SP không phải dịch vụ/open-price và SL trong giỏ
+    # đã = tồn → không thể add thêm.
+    if item["loai_sp"] != "Dịch vụ" and not item["is_open"]:
+        existing_qty = next(
+            (line["so_luong"] for line in _get_cart()
+             if line["ma_hang"] == item["ma_hang"]),
+            0,
+        )
+        if existing_qty + 1 > item["ton"]:
+            st.warning(
+                f"⚠️ **{item['ten_hang']}** — giỏ đã có {existing_qty}, "
+                f"tồn chỉ còn {item['ton']}. Không thể thêm."
+            )
+            # Dialog stay open
+            return
+
     # Add cart + pending toast + close dialog
     _add_to_cart(item)
     st.session_state["_scan_pending_toast"] = item["ten_hang"]
@@ -516,10 +532,8 @@ def _render_search_section():
         with st.expander("🔍   Tìm hàng hóa", expanded=expand_default):
             rk = st.session_state.get("pos_search_reset_cnt", 0)
             # 2-col: search input | icon 📷 mở dialog quét mã vạch.
-            # Icon đặt CÙNG HÀNG search input theo yêu cầu UX.
-            # Ratio [4, 1] = search 80% : icon 20% (giảm search 20% để có
-            # chỗ cho icon hiển thị rõ trên mobile).
-            c_input, c_scan = st.columns([4, 1])
+            # Ratio [2, 1] ≈ search 67% : icon 33% — icon rõ hơn trên mobile.
+            c_input, c_scan = st.columns([2, 1])
             with c_input:
                 keyword = st.text_input(
                     "Search input",
@@ -732,7 +746,30 @@ def _render_footer():
                 unsafe_allow_html=True,
             )
 
-        can_continue = len(cart) > 0
+        overstock = [
+            line for line in cart
+            if line.get("loai_sp") != "Dịch vụ"
+            and not line.get("is_open")
+            and line["so_luong"] > line.get("ton_kho", 0)
+        ]
+        if overstock:
+            lines_html = "".join(
+                f"<li><b>{line['ten_hang']}</b> — SL {line['so_luong']} "
+                f"vượt tồn {line.get('ton_kho', 0)}</li>"
+                for line in overstock
+            )
+            st.markdown(
+                f"<div style='background:#fff1f2;border:1px solid #fca5a5;"
+                f"border-radius:8px;padding:10px 12px;margin:8px 0;"
+                f"color:#991b1b;font-size:0.9rem;'>"
+                f"⚠️ <b>Không thể tiếp tục</b> — giỏ có hàng vượt tồn:"
+                f"<ul style='margin:6px 0 0 18px;'>{lines_html}</ul>"
+                f"<div style='margin-top:6px;'>Bấm vào dòng giỏ để giảm SL.</div>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+        can_continue = len(cart) > 0 and not overstock
         if st.button(
             "💳   TIẾP TỤC THANH TOÁN   ›",
             type="primary",
