@@ -1,9 +1,6 @@
 """
 Reusable live barcode scanner component dùng html5-qrcode + st.components.v2.
 
-Promote từ modules/_poc_live_scan.py (Phase 2). POC v2 trong ban_hang.py
-vẫn dùng _poc_live_scan trong Phase 3-4 transition; cleanup ở Phase 5.
-
 Usage:
     from utils.scanner_component import live_scanner
 
@@ -13,8 +10,6 @@ Usage:
 
 Adaptation: isolate_styles=False để html5-qrcode tìm được #reader qua
 document.getElementById() (default True đẩy HTML vào ShadowRoot → fail).
-
-Refs: PLAN_v2.md mục Phase 2.
 """
 import streamlit as st
 
