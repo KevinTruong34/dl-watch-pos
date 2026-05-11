@@ -422,6 +422,77 @@ def _dialog_clear_cart():
 
 
 # ════════════════════════════════════════════════════════════════
+# RENDER — Barcode scan section (Phase 3 wire)
+# ════════════════════════════════════════════════════════════════
+
+def _scan_and_add_to_cart_ban_hang(chi_nhanh: str):
+    """Live scan barcode → lookup → auto-add 1 vào giỏ.
+
+    Reuse _add_to_cart() — schema item từ lookup_hang_by_ma_vach khớp
+    với load_hang_hoa_pos nên truyền thẳng được.
+    """
+    from utils.scanner_component import live_scanner
+    from utils.barcode import lookup_hang_by_ma_vach
+
+    paused = st.toggle("⏸ Dừng quét", key="scan_ban_hang_pause", value=False)
+    if paused:
+        st.caption("Camera tạm dừng — bỏ tick để tiếp tục")
+        return
+    st.caption("📸 Chĩa camera vào tem mã vạch, app tự nhận diện")
+
+    scan = live_scanner(key="scan_ban_hang")
+    if not scan or not isinstance(scan, dict):
+        return
+
+    code = (scan.get("code") or "").strip()
+    if not code:
+        return
+
+    # Dedup ts — component v2 có thể trigger nhiều lần cùng scan
+    last_ts = st.session_state.get("_scan_ban_hang_last_ts")
+    if last_ts == scan.get("ts"):
+        return
+    st.session_state["_scan_ban_hang_last_ts"] = scan.get("ts")
+
+    # Lookup ma_vach → hang_hoa + tồn
+    result = lookup_hang_by_ma_vach(code, chi_nhanh)
+
+    if not result["ok"]:
+        err = result.get("error")
+        if err == "not_found":
+            st.warning(f"⚠️ Không tìm thấy SP có mã vạch `{code}`")
+        elif err == "duplicate":
+            st.error(
+                f"❌ Nhiều SP cùng mã vạch — báo admin: "
+                f"{result.get('ma_hang_list')}"
+            )
+        elif err == "empty":
+            pass
+        else:
+            st.error(f"❌ Lỗi: {err} {result.get('detail', '')}")
+        return
+
+    item = result["item"]
+
+    # Gate hàng hóa hết hàng (consistent với _render_search_result_card)
+    is_out = (
+        item["loai_sp"] != "Dịch vụ"
+        and not item["is_open"]
+        and item["ton"] == 0
+    )
+    if is_out:
+        st.warning(
+            f"⚠️ **{item['ten_hang']}** đã hết hàng — không thể thêm vào giỏ"
+        )
+        return
+
+    # Reuse pattern _add_to_cart — schema khớp 100% với load_hang_hoa_pos
+    _add_to_cart(item)
+    st.toast(f"✅ Đã thêm: {item['ten_hang']}", icon="🛒")
+    # KHÔNG st.rerun() — component v2 tự trigger rerun via setTriggerValue
+
+
+# ════════════════════════════════════════════════════════════════
 # RENDER — Search section
 # ════════════════════════════════════════════════════════════════
 
@@ -433,6 +504,11 @@ def _render_search_section():
     expand_default = len(cart) == 0
 
     with st.container(key="pos-search-card"):
+        # === BARCODE SCAN ===
+        with st.expander("📷 Quét mã vạch", expanded=False):
+            _scan_and_add_to_cart_ban_hang(chi_nhanh)
+        # === END BARCODE SCAN ===
+
         with st.expander("🔍   Tìm hàng hóa", expanded=expand_default):
             rk = st.session_state.get("pos_search_reset_cnt", 0)
             keyword = st.text_input(
