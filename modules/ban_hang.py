@@ -517,7 +517,9 @@ def _render_search_section():
             rk = st.session_state.get("pos_search_reset_cnt", 0)
             # 2-col: search input | icon 📷 mở dialog quét mã vạch.
             # Icon đặt CÙNG HÀNG search input theo yêu cầu UX.
-            c_input, c_scan = st.columns([5, 1])
+            # Ratio [4, 1] = search 80% : icon 20% (giảm search 20% để có
+            # chỗ cho icon hiển thị rõ trên mobile).
+            c_input, c_scan = st.columns([4, 1])
             with c_input:
                 keyword = st.text_input(
                     "Search input",
@@ -1287,7 +1289,11 @@ def module_ban_hang():
     st.markdown("<div style='margin-top:8px;'></div>", unsafe_allow_html=True)
     _render_cart_section()
     _render_footer()
-    _render_poc_v2_section()
+    # POC v2 expander tắt — nó render live_scanner trong DOM khi load trang
+    # (dù collapsed), gây xin permission camera mỗi page load. Production
+    # scan dùng icon 📷 trong search row (mount on demand). Function vẫn
+    # giữ ở dưới để reference, cleanup hoàn toàn ở Phase 5.
+    # _render_poc_v2_section()
 
 
 # ============================================================
