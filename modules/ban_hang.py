@@ -321,7 +321,9 @@ def _dialog_sua_dong(line: dict):
     st.markdown("<div style='margin-top:14px;'></div>", unsafe_allow_html=True)
 
     st.markdown("**Số lượng:**")
-    sl_max = 99999 if (is_dich_vu or is_open) else max(1, line["ton_kho"])
+    # Defensive: nếu so_luong > ton_kho (legacy data hoặc scan add quá nhanh),
+    # max_value phải bao trùm value hiện tại để không crash StreamlitValueAboveMaxError.
+    sl_max = 99999 if (is_dich_vu or is_open) else max(line["so_luong"], line["ton_kho"], 1)
     with st.container(key=f"numkb-dlg-sl-{line['ma_hang']}"):
         new_sl = st.number_input(
             "Số lượng", min_value=1, max_value=sl_max,
@@ -422,25 +424,23 @@ def _dialog_clear_cart():
 
 
 # ════════════════════════════════════════════════════════════════
-# RENDER — Barcode scan section (Phase 3 wire)
+# DIALOG — Quét mã vạch (one-shot, dialog auto-close sau scan thành công)
 # ════════════════════════════════════════════════════════════════
 
-def _scan_and_add_to_cart_ban_hang(chi_nhanh: str):
-    """Live scan barcode → lookup → auto-add 1 vào giỏ.
+@st.dialog("📷 Quét mã vạch")
+def _dialog_quet_ma_vach(chi_nhanh: str):
+    """Live scan barcode trong dialog. One-shot: quét 1 cái → add vào giỏ
+    → dialog đóng. Muốn quét tiếp user bấm icon 📷 lại.
 
-    Reuse _add_to_cart() — schema item từ lookup_hang_by_ma_vach khớp
-    với load_hang_hoa_pos nên truyền thẳng được.
+    Camera CHỈ mount khi dialog open (vs expander luôn render trong DOM →
+    fix: không xin permission lặp lại mỗi lần load trang Bán hàng).
     """
     from utils.scanner_component import live_scanner
     from utils.barcode import lookup_hang_by_ma_vach
 
-    paused = st.toggle("⏸ Dừng quét", key="scan_ban_hang_pause", value=False)
-    if paused:
-        st.caption("Camera tạm dừng — bỏ tick để tiếp tục")
-        return
-    st.caption("📸 Chĩa camera vào tem mã vạch, app tự nhận diện")
+    st.caption("Chĩa camera vào tem mã vạch — app tự nhận diện rồi đóng")
 
-    scan = live_scanner(key="scan_ban_hang")
+    scan = live_scanner(key="scan_ban_hang_dialog")
     if not scan or not isinstance(scan, dict):
         return
 
@@ -448,11 +448,12 @@ def _scan_and_add_to_cart_ban_hang(chi_nhanh: str):
     if not code:
         return
 
-    # Dedup ts — component v2 có thể trigger nhiều lần cùng scan
-    last_ts = st.session_state.get("_scan_ban_hang_last_ts")
+    # Dedup ts — component v2 có thể trigger nhiều lần cùng scan trong
+    # cùng 1 dialog session. Chỉ process scan đầu tiên.
+    last_ts = st.session_state.get("_scan_dialog_last_ts")
     if last_ts == scan.get("ts"):
         return
-    st.session_state["_scan_ban_hang_last_ts"] = scan.get("ts")
+    st.session_state["_scan_dialog_last_ts"] = scan.get("ts")
 
     # Lookup ma_vach → hang_hoa + tồn
     result = lookup_hang_by_ma_vach(code, chi_nhanh)
@@ -470,6 +471,7 @@ def _scan_and_add_to_cart_ban_hang(chi_nhanh: str):
             pass
         else:
             st.error(f"❌ Lỗi: {err} {result.get('detail', '')}")
+        # Dialog stay open để user thấy error + quét tem khác
         return
 
     item = result["item"]
@@ -484,12 +486,13 @@ def _scan_and_add_to_cart_ban_hang(chi_nhanh: str):
         st.warning(
             f"⚠️ **{item['ten_hang']}** đã hết hàng — không thể thêm vào giỏ"
         )
+        # Dialog stay open
         return
 
-    # Reuse pattern _add_to_cart — schema khớp 100% với load_hang_hoa_pos
+    # Add cart + pending toast + close dialog
     _add_to_cart(item)
-    st.toast(f"✅ Đã thêm: {item['ten_hang']}", icon="🛒")
-    # KHÔNG st.rerun() — component v2 tự trigger rerun via setTriggerValue
+    st.session_state["_scan_pending_toast"] = item["ten_hang"]
+    st.rerun()  # rerun = close dialog + render toast ngoài
 
 
 # ════════════════════════════════════════════════════════════════
@@ -503,20 +506,30 @@ def _render_search_section():
     cart = _get_cart()
     expand_default = len(cart) == 0
 
-    with st.container(key="pos-search-card"):
-        # === BARCODE SCAN ===
-        with st.expander("📷 Quét mã vạch", expanded=False):
-            _scan_and_add_to_cart_ban_hang(chi_nhanh)
-        # === END BARCODE SCAN ===
+    # Toast confirm sau khi scan dialog đóng + cart updated (rerun từ st.rerun
+    # trong _dialog_quet_ma_vach). Pop để không re-toast ở lần render sau.
+    _pending = st.session_state.pop("_scan_pending_toast", None)
+    if _pending:
+        st.toast(f"✅ Đã thêm: {_pending}", icon="🛒")
 
+    with st.container(key="pos-search-card"):
         with st.expander("🔍   Tìm hàng hóa", expanded=expand_default):
             rk = st.session_state.get("pos_search_reset_cnt", 0)
-            keyword = st.text_input(
-                "Search input",
-                placeholder="Gõ mã hoặc tên hàng...",
-                key=f"pos_search_kw_{rk}",
-                label_visibility="collapsed",
-            )
+            # 2-col: search input | icon 📷 mở dialog quét mã vạch.
+            # Icon đặt CÙNG HÀNG search input theo yêu cầu UX.
+            c_input, c_scan = st.columns([5, 1])
+            with c_input:
+                keyword = st.text_input(
+                    "Search input",
+                    placeholder="Gõ mã hoặc tên hàng...",
+                    key=f"pos_search_kw_{rk}",
+                    label_visibility="collapsed",
+                )
+            with c_scan:
+                if st.button("📷", key="pos_scan_btn",
+                             help="Quét mã vạch",
+                             use_container_width=True):
+                    _dialog_quet_ma_vach(chi_nhanh)
 
             if not keyword.strip():
                 if not hh_list:
