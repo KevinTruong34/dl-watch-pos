@@ -532,8 +532,22 @@ def _render_search_section():
         with st.expander("🔍   Tìm hàng hóa", expanded=expand_default):
             rk = st.session_state.get("pos_search_reset_cnt", 0)
             # 2-col: search input | icon 📷 mở dialog quét mã vạch.
-            # Ratio [2, 1] ≈ search 67% : icon 33% — icon rõ hơn trên mobile.
-            c_input, c_scan = st.columns([2, 1])
+            # Scan button khóa cứng 48×48px qua CSS (touch target tối thiểu),
+            # KHÔNG stretch theo column. Column tỉ lệ rộng để search có chỗ.
+            st.markdown(
+                """<style>
+                .st-key-pos-scan-btn-wrap [data-testid="stBaseButton-secondary"] {
+                    width: 48px !important;
+                    min-width: 48px !important;
+                    max-width: 48px !important;
+                    height: 48px !important;
+                    padding: 0 !important;
+                    font-size: 1.2rem !important;
+                }
+                </style>""",
+                unsafe_allow_html=True,
+            )
+            c_input, c_scan = st.columns([5, 1])
             with c_input:
                 keyword = st.text_input(
                     "Search input",
@@ -542,10 +556,10 @@ def _render_search_section():
                     label_visibility="collapsed",
                 )
             with c_scan:
-                if st.button("📷", key="pos_scan_btn",
-                             help="Quét mã vạch",
-                             use_container_width=True):
-                    _dialog_quet_ma_vach(chi_nhanh)
+                with st.container(key="pos-scan-btn-wrap"):
+                    if st.button("📷", key="pos_scan_btn",
+                                 help="Quét mã vạch"):
+                        _dialog_quet_ma_vach(chi_nhanh)
 
             if not keyword.strip():
                 if not hh_list:

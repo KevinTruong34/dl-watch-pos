@@ -250,6 +250,89 @@ def _moi_remove(ma_hang: str):
     st.session_state["doi_tra_moi_cart"] = cart
 
 
+@st.dialog("📷 Quét mã vạch")
+def _dialog_quet_ma_vach_doi_tra(chi_nhanh: str):
+    """Live scan barcode trong dialog cho màn đổi/trả. One-shot: quét 1 cái
+    → add vào giỏ "khách mua mới" → dialog đóng.
+
+    Khác `_dialog_quet_ma_vach` của ban_hang:
+    - Chặn Dịch vụ (consistent với `_render_search_card_moi` — đổi hàng
+      không lấy dịch vụ).
+    - Dùng `_moi_add` thay vì `_add_to_cart`.
+    - Schema item map: `ton` (doi_tra) thay vì `ton_kho` (ban_hang).
+    """
+    from utils.scanner_component import live_scanner
+    from utils.barcode import lookup_hang_by_ma_vach
+
+    st.caption("Chĩa camera vào tem mã vạch — app tự nhận diện rồi đóng")
+
+    scan = live_scanner(key="scan_doi_tra_dialog")
+    if not scan or not isinstance(scan, dict):
+        return
+
+    code = (scan.get("code") or "").strip()
+    if not code:
+        return
+
+    last_ts = st.session_state.get("_scan_doi_tra_last_ts")
+    if last_ts == scan.get("ts"):
+        return
+    st.session_state["_scan_doi_tra_last_ts"] = scan.get("ts")
+
+    result = lookup_hang_by_ma_vach(code, chi_nhanh)
+
+    if not result["ok"]:
+        err = result.get("error")
+        if err == "not_found":
+            st.warning(f"⚠️ Không tìm thấy SP có mã vạch `{code}`")
+        elif err == "duplicate":
+            st.error(
+                f"❌ Nhiều SP cùng mã vạch — báo admin: "
+                f"{result.get('ma_hang_list')}"
+            )
+        elif err == "empty":
+            pass
+        else:
+            st.error(f"❌ Lỗi: {err} {result.get('detail', '')}")
+        return
+
+    item = result["item"]
+
+    # Chặn Dịch vụ — đổi hàng không lấy dịch vụ (consistent với
+    # _render_search_card_moi line ~334).
+    if item["loai_sp"] == "Dịch vụ":
+        st.warning(
+            f"⚠️ **{item['ten_hang']}** là dịch vụ — không thể đổi sang dịch vụ"
+        )
+        return
+
+    # Gate hết hàng
+    is_out = (not item["is_open"]) and item["ton"] == 0
+    if is_out:
+        st.warning(
+            f"⚠️ **{item['ten_hang']}** đã hết hàng — không thể thêm vào giỏ"
+        )
+        return
+
+    # Chặn vượt tồn (skip open-price)
+    if not item["is_open"]:
+        existing_qty = next(
+            (line["so_luong"] for line in _get_moi_cart()
+             if line["ma_hang"] == item["ma_hang"]),
+            0,
+        )
+        if existing_qty + 1 > item["ton"]:
+            st.warning(
+                f"⚠️ **{item['ten_hang']}** — giỏ đã có {existing_qty}, "
+                f"tồn chỉ còn {item['ton']}. Không thể thêm."
+            )
+            return
+
+    _moi_add(item)
+    st.session_state["_scan_doi_tra_pending_toast"] = item["ten_hang"]
+    st.rerun()
+
+
 def _render_section_moi(chi_nhanh: str):
     st.markdown(
         "<div style='font-size:0.92rem;font-weight:600;color:#1a1a2e;"
@@ -260,14 +343,40 @@ def _render_section_moi(chi_nhanh: str):
     hh_list = load_hang_hoa_pos(chi_nhanh)
     cart = _get_moi_cart()
 
+    # Toast confirm sau khi scan dialog đóng + cart updated.
+    _pending = st.session_state.pop("_scan_doi_tra_pending_toast", None)
+    if _pending:
+        st.toast(f"✅ Đã thêm: {_pending}", icon="🛒")
+
     with st.expander("🔍 Tìm hàng hóa", expanded=(len(cart) == 0)):
         rk = st.session_state.get("doi_tra_search_reset_cnt", 0)
-        keyword = st.text_input(
-            "Search input",
-            placeholder="Gõ mã hoặc tên hàng...",
-            key=f"dt_search_kw_{rk}",
-            label_visibility="collapsed",
+        # 2-col: search input | icon 📷 scan. Scan button khóa 48×48px qua CSS.
+        st.markdown(
+            """<style>
+            .st-key-dt-scan-btn-wrap [data-testid="stBaseButton-secondary"] {
+                width: 48px !important;
+                min-width: 48px !important;
+                max-width: 48px !important;
+                height: 48px !important;
+                padding: 0 !important;
+                font-size: 1.2rem !important;
+            }
+            </style>""",
+            unsafe_allow_html=True,
         )
+        c_input, c_scan = st.columns([5, 1])
+        with c_input:
+            keyword = st.text_input(
+                "Search input",
+                placeholder="Gõ mã hoặc tên hàng...",
+                key=f"dt_search_kw_{rk}",
+                label_visibility="collapsed",
+            )
+        with c_scan:
+            with st.container(key="dt-scan-btn-wrap"):
+                if st.button("📷", key="dt_scan_btn",
+                             help="Quét mã vạch"):
+                    _dialog_quet_ma_vach_doi_tra(chi_nhanh)
         if keyword.strip():
             results = _search_hang_hoa(keyword, hh_list, max_results=3)
             if not results:
