@@ -22,7 +22,7 @@ import streamlit as st
 # HTML template — render scanner viewfinder + status text
 _HTML = """
 <div id="scanner-wrapper">
-  <div id="reader" style="width:100%; max-width:480px; margin:0 auto;"></div>
+  <div id="reader" style="width:100%; max-width:480px; min-height:320px; margin:0 auto;"></div>
   <div id="status" style="text-align:center; padding:8px; font-family:sans-serif; font-size:14px; color:#666;">
     Khởi động camera...
   </div>
@@ -125,9 +125,17 @@ export default function(component) {
 """
 
 _CSS = """
+#reader {
+  min-height: 320px;
+}
 #reader video {
-  border-radius: 8px;
   width: 100% !important;
+  height: auto !important;
+  display: block !important;
+  border-radius: 8px;
+}
+#reader img {
+  display: none !important;  /* ẩn placeholder camera icon khi đang quét */
 }
 #reader__dashboard {
   background: #f3f4f6;
