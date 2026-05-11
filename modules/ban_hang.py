@@ -534,8 +534,19 @@ def _render_search_section():
             # 2-col: search input | icon 📷 mở dialog quét mã vạch.
             # Scan button khóa cứng 48×48px qua CSS (touch target tối thiểu),
             # KHÔNG stretch theo column. Column tỉ lệ rộng để search có chỗ.
+            # Force horizontal flex — Streamlit mặc định stack columns trên
+            # màn hẹp khi không có hint horizontal.
             st.markdown(
                 """<style>
+                .st-key-pos-search-row div[data-testid="stHorizontalBlock"] {
+                    flex-direction: row !important;
+                    flex-wrap: nowrap !important;
+                    gap: 8px !important;
+                    align-items: center !important;
+                }
+                .st-key-pos-search-row div[data-testid="stHorizontalBlock"] > div {
+                    min-width: 0 !important;
+                }
                 .st-key-pos-scan-btn-wrap [data-testid="stBaseButton-secondary"] {
                     width: 48px !important;
                     min-width: 48px !important;
@@ -547,19 +558,20 @@ def _render_search_section():
                 </style>""",
                 unsafe_allow_html=True,
             )
-            c_input, c_scan = st.columns([5, 1])
-            with c_input:
-                keyword = st.text_input(
-                    "Search input",
-                    placeholder="Gõ mã hoặc tên hàng...",
-                    key=f"pos_search_kw_{rk}",
-                    label_visibility="collapsed",
-                )
-            with c_scan:
-                with st.container(key="pos-scan-btn-wrap"):
-                    if st.button("📷", key="pos_scan_btn",
-                                 help="Quét mã vạch"):
-                        _dialog_quet_ma_vach(chi_nhanh)
+            with st.container(key="pos-search-row"):
+                c_input, c_scan = st.columns([5, 1])
+                with c_input:
+                    keyword = st.text_input(
+                        "Search input",
+                        placeholder="Gõ mã hoặc tên hàng...",
+                        key=f"pos_search_kw_{rk}",
+                        label_visibility="collapsed",
+                    )
+                with c_scan:
+                    with st.container(key="pos-scan-btn-wrap"):
+                        if st.button("📷", key="pos_scan_btn",
+                                     help="Quét mã vạch"):
+                            _dialog_quet_ma_vach(chi_nhanh)
 
             if not keyword.strip():
                 if not hh_list:
@@ -838,6 +850,9 @@ def _render_man_thanh_toan():
         unsafe_allow_html=True,
     )
 
+    with st.container(key="pos3-section-kh-review"):
+        _render_section_khach_hang_review()
+
     tam_tinh = _calc_tam_tinh(cart)
 
     with st.container(key="pos3-section-tom-tat"):
@@ -851,6 +866,55 @@ def _render_man_thanh_toan():
         pttt = _render_section_pttt(khach_can_tra)
 
     _render_footer_thanh_toan(cart, giam_gia_don, khach_can_tra, pttt)
+
+
+def _render_section_khach_hang_review():
+    """Read-only review KH ở màn thanh toán. Data nhập ở màn 1 qua
+    `_render_section_khach_hang` (key pos3_*). Nếu rỗng → warning user
+    quay lại màn 1 (validation ở footer cũng sẽ chặn submit).
+    """
+    is_khach_le = bool(st.session_state.get("pos3_khach_le", False))
+    kh_data     = st.session_state.get("pos3_kh_data", {}) or {}
+
+    st.markdown(
+        "<div style='font-size:0.92rem;font-weight:600;color:#1a1a2e;"
+        "margin:6px 0 8px;'>👤 KHÁCH HÀNG</div>",
+        unsafe_allow_html=True
+    )
+
+    if is_khach_le:
+        st.markdown(
+            "<div style='padding:4px 0;font-size:0.92rem;color:#1a1a2e;'>"
+            "Khách lẻ <span style='color:#888;font-size:0.85rem;'>"
+            "— không cần SĐT</span></div>",
+            unsafe_allow_html=True,
+        )
+        return
+
+    sdt    = (kh_data.get("sdt") or "").strip()
+    ten_kh = (kh_data.get("ten_kh") or "").strip()
+    is_new = bool(kh_data.get("is_new"))
+
+    if not sdt:
+        st.markdown(
+            "<div style='background:#fff1f2;border:1px solid #fca5a5;"
+            "border-radius:8px;padding:8px 12px;color:#991b1b;"
+            "font-size:0.88rem;'>⚠️ Chưa nhập thông tin khách hàng — "
+            "bấm ← quay lại nhập SĐT hoặc tick \"Khách lẻ\".</div>",
+            unsafe_allow_html=True,
+        )
+        return
+
+    badge = " <span style='background:#fff3cd;color:#856404;font-size:0.72rem;" \
+            "padding:1px 6px;border-radius:6px;margin-left:6px;'>" \
+            "Khách mới</span>" if is_new else ""
+    st.markdown(
+        f"<div style='padding:4px 0;font-size:0.92rem;color:#1a1a2e;'>"
+        f"<b>{ten_kh or '(chưa có tên)'}</b>{badge}"
+        f"<div style='font-size:0.85rem;color:#666;'>SĐT: {sdt}</div>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
 
 
 def _render_section_khach_hang():
