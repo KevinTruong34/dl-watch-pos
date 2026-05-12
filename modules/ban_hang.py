@@ -58,21 +58,66 @@ button[aria-label="Manage app"] { display: none !important; }
 /* fix: round2 - badge KH cũ inline, fit-content, không full-width */
 .st-key-pos-kh-badge { display: inline-block; width: auto; }
 
+/* fix: round4 - hàng actions sau compact row khi KH đã match:
+   [Đổi SĐT (small) | Khách lẻ checkbox right] */
+.st-key-pos1-kh-actions div[data-testid="stHorizontalBlock"] {
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    gap: 8px !important;
+    margin-top: 8px !important;
+}
+.st-key-pos1-kh-actions div[data-testid="stHorizontalBlock"] > div {
+    min-width: 0 !important;
+}
+.st-key-pos1-kh-actions [data-testid="stCheckbox"] {
+    justify-content: flex-end !important;
+    display: flex !important;
+}
+/* Đổi SĐT khách: pill nhỏ ~80% kích thước */
+.st-key-pos1_change_sdt button {
+    font-size: 11px !important;
+    padding: 4px 10px !important;
+    min-height: 26px !important;
+    height: 26px !important;
+    line-height: 1 !important;
+    color: #6b6b7b !important;
+    border: 1px solid #ececef !important;
+    background: #fff !important;
+    border-radius: 999px !important;
+    box-shadow: none !important;
+    font-weight: 500 !important;
+}
+.st-key-pos1_change_sdt button p {
+    font-size: 11px !important;
+    margin: 0 !important;
+    line-height: 1 !important;
+}
+
 /* ============ MÀN 1 — Search ============ */
-/* fix: round2 - scan 📷 button 48x48 + font-size 20px để emoji rõ */
-.st-key-pos-scan-btn-wrap [data-testid="stBaseButton-secondary"] {
-    width: 48px !important; min-width: 48px !important; max-width: 48px !important;
-    height: 48px !important;
-    padding: 0 !important;
+/* fix: round4 - wrap input + 📷 trong 1 white card chung */
+.st-key-pos-search-row {
+    background: #fff !important;
     border: 1px solid #ececef !important;
     border-radius: 12px !important;
+    padding: 4px 4px 4px 8px !important;
+    margin-top: 6px !important;
+}
+.st-key-pos-search-row [data-baseweb="input"] > div {
+    border: none !important;
+    background: transparent !important;
+    border-radius: 0 !important;
+}
+/* fix: round2 - scan 📷 button 48x48. fix: round4 - bỏ border (parent có rồi) */
+.st-key-pos-scan-btn-wrap [data-testid="stBaseButton-secondary"] {
+    width: 44px !important; min-width: 44px !important; max-width: 44px !important;
+    height: 44px !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 8px !important;
     background: #fff !important;
     font-size: 20px !important;
     box-shadow: none !important;
-}
-.st-key-pos-search-row [data-baseweb="input"] > div {
-    border-radius: 12px !important;
-    border-color: #ececef !important;
 }
 
 /* Search result card buttons — flat card */
@@ -122,7 +167,7 @@ button[aria-label="Manage app"] { display: none !important; }
     margin-top: 4px !important;
 }
 
-/* fix: round3 - ✕ button: stacked dưới price trong cùng cột, căn phải */
+/* fix: round4 - ✕ button: TOP-right, no border, no background */
 [class*="st-key-pos-del-"] {
     display: flex !important;
     justify-content: flex-end !important;
@@ -131,14 +176,14 @@ button[aria-label="Manage app"] { display: none !important; }
     width: 28px !important; min-width: 28px !important; max-width: 28px !important;
     height: 28px !important;
     padding: 0 !important;
-    border: 1px solid #ececef !important;
-    border-radius: 8px !important;
-    background: #fff !important;
+    border: none !important;
+    background: transparent !important;
     color: #9a9aab !important;
-    font-size: 13px !important;
+    font-size: 14px !important;
     box-shadow: none !important;
     margin: 0 !important;
 }
+[class*="st-key-pos-del-"] button:hover { color: #e63946 !important; }
 
 /* fix: round2 - "Xóa hết" 28x28 pill (was 26px) */
 .st-key-cart-header-zone [data-testid="stBaseButton-secondary"] {
@@ -169,9 +214,9 @@ button[aria-label="Manage app"] { display: none !important; }
     z-index: 30 !important;
     background: #fff !important;
     border-top: 1px solid #ececef !important;
-    padding: 12px 14px calc(16px + env(safe-area-inset-bottom)) !important;
-    /* fix: round2 - negative side margin để footer span sát mép màn */
-    margin: 14px -14px 0 !important;
+    padding: 12px 1rem calc(16px + env(safe-area-inset-bottom)) !important;
+    /* fix: round4 - dùng -1rem để span đều 2 mép theo block-container padding */
+    margin: 14px -1rem 0 !important;
     box-shadow: 0 -8px 24px rgba(0,0,0,0.04) !important;
 }
 .st-key-pos-footer-sticky [data-testid="stBaseButton-primary"],
@@ -186,13 +231,23 @@ button[aria-label="Manage app"] { display: none !important; }
 }
 
 /* ============ MÀN 2 — Soft cards ============ */
+/* fix: round4 - padding-bottom 18px cho breathing room đều hơn */
 [class*="st-key-pos3-section-"] {
     background: #fff;
     border-radius: 14px;
-    padding: 12px 14px;
+    padding: 14px 14px 18px;
     margin: 10px 0;
     box-shadow: 0 1px 2px rgba(20,20,40,0.04);
     border: none;
+}
+
+/* fix: round4 - header màn 2 cũng là white card (← + title cùng row) */
+.st-key-pos3-header-row {
+    background: #fff !important;
+    border-radius: 14px !important;
+    padding: 10px 14px !important;
+    margin: 10px 0 !important;
+    box-shadow: 0 1px 2px rgba(20,20,40,0.04) !important;
 }
 
 /* Back button (32x32) */
@@ -809,32 +864,33 @@ def _render_cart_section():
 def _render_cart_line(line: dict):
     thanh_tien = _calc_thanh_tien(line)
     has_giam = line["giam_gia_dong"] > 0
-    # fix: round3 - 2-col, cột phải stack [price trên / ✕ dưới]
+    # fix: round3 - 2-col, fix: round4 - cột phải stack [✕ TOP / price BOTTOM]
     col_info, col_right = st.columns([5, 2])
 
     with col_info:
         suffix = f"  ·  giảm {fmt_vnd(line['giam_gia_dong'])}" if has_giam else ""
-        # fix: round2 - prefix "Mã: " / "SL: " theo design
+        # fix: round4 - 2 dòng: "**tên** · SL n" / "Mã: ...", bỏ inline "× giá"
         if st.button(
-            f"**{line['ten_hang']}**\n\n"
-            f"Mã: {line['ma_hang']}\n\n"
-            f"SL: {line['so_luong']} × {fmt_vnd(line['don_gia'])}{suffix}",
+            f"**{line['ten_hang']}**  ·  SL {line['so_luong']}\n\n"
+            f"Mã: {line['ma_hang']}{suffix}",
             key=f"pos_edit_{line['ma_hang']}",
             use_container_width=True,
         ):
             _dialog_sua_dong(line)
 
     with col_right:
-        st.markdown(
-            f"<div style='font-weight:700;font-size:15px;color:#e63946;"
-            f"text-align:right;white-space:nowrap;padding:14px 0 6px;'>"
-            f"{fmt_vnd(thanh_tien)}</div>",
-            unsafe_allow_html=True,
-        )
+        # fix: round4 - ✕ ở TOP-right (no border)
         if st.button("✕", key=f"pos_del_{line['ma_hang']}",
                      help="Xóa khỏi giỏ"):
             _remove_from_cart(line["ma_hang"])
             st.rerun()
+        # fix: round4 - giá đỏ BOTTOM-right
+        st.markdown(
+            f"<div style='font-weight:700;font-size:15px;color:#e63946;"
+            f"text-align:right;white-space:nowrap;padding:8px 0 6px;'>"
+            f"{fmt_vnd(thanh_tien)}</div>",
+            unsafe_allow_html=True,
+        )
 
 
 # ════════════════════════════════════════════════════════════════
@@ -922,9 +978,9 @@ def _render_man_thanh_toan():
                     st.session_state.pop("pos_step", None)
                     st.rerun()
         with col_title:
+            # fix: round4 - bỏ padding-top:4px (header giờ có white card padding)
             st.markdown(
-                f"<div style='display:flex;align-items:center;gap:10px;"
-                f"padding-top:4px;'>"
+                f"<div style='display:flex;align-items:center;gap:10px;'>"
                 f"<div style='font-weight:700;font-size:16px;color:#1a1a2e;"
                 f"flex:1;'>Thanh toán</div>"
                 f"<div style='font-size:11px;color:#6b6b7b;background:#f3f3f5;"
@@ -1019,6 +1075,52 @@ def _render_section_khach_hang():
         unsafe_allow_html=True
     )
 
+    # fix: round4 - tính matched state TRƯỚC để quyết vị trí render checkbox.
+    # Matched → checkbox ở bottom-right (cùng row "Đổi SĐT").
+    # Not matched / khách lẻ → checkbox ở top.
+    is_khach_le_state = bool(st.session_state.get("pos3_khach_le", False))
+    cached_kh = st.session_state.get("pos3_lookup_result")
+    cached_sdt = st.session_state.get("pos3_last_lookup_sdt", "")
+    matched = bool(cached_kh and cached_sdt) and not is_khach_le_state
+
+    if matched:
+        # fix: round3 - compact row + fix: round4 - actions row [Đổi SĐT | Khách lẻ]
+        st.markdown(
+            f"<div style='display:flex;align-items:center;gap:10px;"
+            f"padding:10px 14px;background:#fff;border-radius:12px;"
+            f"border:1px solid #ececef;margin-top:4px;'>"
+            f"<span style='font-size:13px;color:#6b6b7b;font-weight:600;'>SĐT</span>"
+            f"<div style='flex:1;font-family:ui-monospace,monospace;"
+            f"font-size:14px;color:#1a1a2e;letter-spacing:0.3px;'>{cached_sdt}</div>"
+            f"<div style='font-size:11px;font-weight:600;color:#16a34a;"
+            f"background:#ecfdf5;padding:3px 8px;border-radius:999px;"
+            f"white-space:nowrap;'>✓ {cached_kh['ten_kh']}</div>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+        with st.container(key="pos1-kh-actions"):
+            col_chg, col_kle = st.columns([3, 4])
+            with col_chg:
+                if st.button("Đổi SĐT khách", key="pos1_change_sdt"):
+                    st.session_state.pop("pos3_last_lookup_sdt", None)
+                    st.session_state.pop("pos3_lookup_result", None)
+                    st.session_state["pos3_sdt_input"] = ""
+                    st.rerun()
+            with col_kle:
+                st.checkbox(
+                    "Khách lẻ (không cần SĐT)",
+                    key="pos3_khach_le",
+                    value=False,
+                )
+        st.session_state["pos3_kh_data"] = {
+            "ma_kh":  cached_kh.get("ma_kh"),
+            "ten_kh": cached_kh.get("ten_kh", ""),
+            "sdt":    cached_sdt,
+            "is_new": False,
+        }
+        return
+
+    # Not matched (hoặc đang khách lẻ) — checkbox ở top
     is_khach_le = st.checkbox(
         "Khách lẻ (không cần SĐT)",
         key="pos3_khach_le",
@@ -1030,36 +1132,6 @@ def _render_section_khach_hang():
             "ma_kh":  None,
             "ten_kh": "Khách lẻ",
             "sdt":    "",
-            "is_new": False,
-        }
-        return
-
-    # fix: round3 - nếu đã có cached match KH → render compact row (skip input)
-    cached_kh = st.session_state.get("pos3_lookup_result")
-    cached_sdt = st.session_state.get("pos3_last_lookup_sdt", "")
-    if cached_kh and cached_sdt:
-        st.markdown(
-            f"<div style='display:flex;align-items:center;gap:10px;"
-            f"padding:10px 14px;background:#fff;border-radius:12px;"
-            f"border:1px solid #ececef;margin-top:6px;'>"
-            f"<span style='font-size:13px;color:#6b6b7b;font-weight:600;'>SĐT</span>"
-            f"<div style='flex:1;font-family:ui-monospace,monospace;"
-            f"font-size:14px;color:#1a1a2e;letter-spacing:0.3px;'>{cached_sdt}</div>"
-            f"<div style='font-size:11px;font-weight:600;color:#16a34a;"
-            f"background:#ecfdf5;padding:3px 8px;border-radius:999px;"
-            f"white-space:nowrap;'>✓ {cached_kh['ten_kh']}</div>"
-            f"</div>",
-            unsafe_allow_html=True,
-        )
-        if st.button("Đổi SĐT khách", key="pos1_change_sdt"):
-            st.session_state.pop("pos3_last_lookup_sdt", None)
-            st.session_state.pop("pos3_lookup_result", None)
-            st.session_state["pos3_sdt_input"] = ""
-            st.rerun()
-        st.session_state["pos3_kh_data"] = {
-            "ma_kh":  cached_kh.get("ma_kh"),
-            "ten_kh": cached_kh.get("ten_kh", ""),
-            "sdt":    cached_sdt,
             "is_new": False,
         }
         return
@@ -1127,11 +1199,16 @@ def _render_section_tom_tat(cart: list[dict], tam_tinh: int):
     for line in cart:
         sl = line["so_luong"]
         thanh_tien = _calc_thanh_tien(line)
+        # fix: round4 - thêm mã hàng inline kế "×SL"
         items_html += (
             f"<div style='display:flex;justify-content:space-between;"
             f"align-items:baseline;font-size:14px;padding:6px 0;'>"
             f"<div style='flex:1;min-width:0;color:#1a1a2e;'>{line['ten_hang']} "
-            f"<span style='color:#9a9aab;'>×{sl}</span></div>"
+            f"<span style='color:#9a9aab;'>×{sl}</span>"
+            f"<span style='color:#9a9aab;font-size:11px;"
+            f"font-family:ui-monospace,monospace;margin-left:8px;'>"
+            f"{line['ma_hang']}</span>"
+            f"</div>"
             f"<div style='color:#1a1a2e;font-weight:700;white-space:nowrap;'>"
             f"{fmt_vnd(thanh_tien)}</div>"
             f"</div>"
