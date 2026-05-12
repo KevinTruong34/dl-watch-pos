@@ -153,32 +153,44 @@ button[aria-label="Manage app"] { display: none !important; }
     gap: 0 !important;
 }
 
-/* fix: round7 - Edit button (cart line info) flush trái, no border/bg */
+/* fix: round9 - Edit button = flex column align stretch để content full-width.
+   Trước đó button default flex-row + justify-content centered nội dung →
+   cart line nào content ngắn thì left-start xa hơn cart line content dài.
+   Force flex-direction:column + align-items:stretch + button > * width:100%. */
 [class*="st-key-pos_edit_"] button,
 .st-key-cart-rows-zone [data-key^="pos_edit_"] button {
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
-    text-align: left !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
     justify-content: flex-start !important;
+    text-align: left !important;
     padding: 4px 0 !important;
     min-height: 0 !important;
     margin: 0 !important;
+    width: 100% !important;
 }
 [class*="st-key-pos_edit_"] button:hover,
 .st-key-cart-rows-zone [data-key^="pos_edit_"] button:hover {
     background: rgba(0,0,0,0.02) !important;
 }
-[class*="st-key-pos_edit_"] button p,
-[class*="st-key-pos_edit_"] button div {
+/* Force ALL wrapper layers inside button to full-width + left-align */
+[class*="st-key-pos_edit_"] button > *,
+[class*="st-key-pos_edit_"] button [data-testid="stMarkdownContainer"] {
+    width: 100% !important;
     text-align: left !important;
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
+}
+[class*="st-key-pos_edit_"] button p {
+    text-align: left !important;
+    width: 100% !important;
+    display: block !important;
     line-height: 1.35 !important;
     margin: 0 !important;
     padding: 0 !important;
-}
-[class*="st-key-pos_edit_"] button > div {
-    align-items: flex-start !important;
-    width: 100% !important;
 }
 /* fix: round8 - line 2 (Mã: xxx + price strong). Price strong absolute-positioned
    ở góc phải của line 2, màu đỏ font 15. Tên hàng line 1 vẫn ink color. */
