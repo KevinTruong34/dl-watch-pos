@@ -180,6 +180,21 @@ button[aria-label="Manage app"] { display: none !important; }
     align-items: flex-start !important;
     width: 100% !important;
 }
+/* fix: round8 - line 2 (Mã: xxx + price strong). Price strong absolute-positioned
+   ở góc phải của line 2, màu đỏ font 15. Tên hàng line 1 vẫn ink color. */
+[class*="st-key-pos_edit_"] button p:nth-of-type(2) {
+    position: relative !important;
+    padding-right: 96px !important;
+}
+[class*="st-key-pos_edit_"] button p:nth-of-type(2) strong {
+    position: absolute !important;
+    right: 4px !important;
+    top: 0 !important;
+    color: #e63946 !important;
+    font-size: 15px !important;
+    font-weight: 800 !important;
+    white-space: nowrap !important;
+}
 
 /* fix: round7 - ✕ button: flush sát phải, no border/bg. margin-left:auto đẩy
    ✕ về phải trong col_x bất kể col_x width thực tế. */
@@ -894,37 +909,25 @@ def _render_cart_section():
 def _render_cart_line(line: dict):
     thanh_tien = _calc_thanh_tien(line)
     has_giam = line["giam_gia_dong"] > 0
-    # fix: round7 - đổi sang 2-col [6, 1]: info trái, ✕ phải.
-    # Giá render NGOÀI columns block (sau `with col_x:` đóng) để chắc chắn
-    # nằm trong cart-rows-zone container, không phụ thuộc col_right height.
+    suffix = f"  ·  giảm {fmt_vnd(line['giam_gia_dong'])}" if has_giam else ""
+    # fix: round8 - 2-col [6,1] info | ✕. Giá nhúng vào label của edit button
+    # (line 2, cùng với mã hàng), CSS absolute right để căn góc phải.
     col_info, col_x = st.columns([6, 1])
 
     with col_info:
-        suffix = f"  ·  giảm {fmt_vnd(line['giam_gia_dong'])}" if has_giam else ""
         if st.button(
             f"**{line['ten_hang']}**  ·  SL {line['so_luong']}\n\n"
-            f"Mã: {line['ma_hang']}{suffix}",
+            f"Mã: {line['ma_hang']}{suffix} **{fmt_vnd(thanh_tien)}**",
             key=f"pos_edit_{line['ma_hang']}",
             use_container_width=True,
         ):
             _dialog_sua_dong(line)
 
     with col_x:
-        # fix: round7 - ✕ TOP-right, no border, no bg
         if st.button("✕", key=f"pos_del_{line['ma_hang']}",
                      help="Xóa khỏi giỏ"):
             _remove_from_cart(line["ma_hang"])
             st.rerun()
-
-    # fix: round7 - giá BELOW row (outside columns), inside cart-rows-zone.
-    # Tránh stacking trong col_right gây overflow ngoài card.
-    st.markdown(
-        f"<div style='font-weight:700;font-size:15px;color:#e63946;"
-        f"text-align:right;white-space:nowrap;padding:0 6px 4px 0;"
-        f"margin-top:-12px;'>"
-        f"{fmt_vnd(thanh_tien)}</div>",
-        unsafe_allow_html=True,
-    )
 
 
 # ════════════════════════════════════════════════════════════════
