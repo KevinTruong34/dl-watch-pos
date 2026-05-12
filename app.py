@@ -22,6 +22,10 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+# === Hide Streamlit Cloud branding ===
+from utils.hide_streamlit_badge import hide_streamlit_branding
+hide_streamlit_branding()
+
 
 # ════════════════════════════════════════════════════════════════
 # NUMERIC KEYBOARD GLOBAL — MutationObserver inject inputmode
