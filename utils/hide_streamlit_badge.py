@@ -3,13 +3,19 @@ Hide Streamlit Cloud branding badge ("Hosted with Streamlit") + profile containe
 ở góc dưới phải màn hình.
 
 Đã verify (12/05/2026) trên Chrome desktop:
-- iframe app cùng origin với parent (dl-watch-pos.streamlit.app)
-- window.parent.document accessible (KHÔNG bị Same-Origin Policy block)
+- Top window cùng origin với iframe app (dl-watch-pos.streamlit.app)
+- window.top.document accessible từ components.html iframe
 - Selector a[href*="streamlit.io/cloud"] match đúng badge
+
+LƯU Ý KỸ THUẬT — Tại sao dùng window.top, KHÔNG dùng window.parent:
+- `components.html()` của Streamlit tạo iframe NESTED bên trong iframe app
+- Từ trong iframe components, `window.parent` = iframe app POS (KHÔNG có badge)
+- `window.top` = top window (chứa badge)
+- → Phải dùng window.top để reach badge
 
 Workaround tạm thời. Có thể break khi Streamlit Cloud thay đổi:
 - Structure DOM (vd đổi class name, đổi href badge)
-- Iframe sandbox policy (vd thêm sandbox flag block parent access)
+- Iframe sandbox policy (vd thêm sandbox flag block top access)
 - Cross-origin (vd tách iframe sang subdomain khác)
 
 Nếu badge xuất hiện lại sau update Streamlit → cần inspect lại + cập nhật selector.
@@ -37,8 +43,11 @@ _JS_HIDE_BADGE = """
     ];
     
     function hideAll() {
+        // CRITICAL: dùng window.top (KHÔNG dùng window.parent).
+        // components.html() tạo iframe nested bên trong iframe app POS, nên
+        // parent = iframe app POS (KHÔNG có badge), top = top window (có badge).
         try {
-            const doc = window.parent.document;
+            const doc = window.top.document;
             if (!doc) return 0;
             
             let hidden = 0;
@@ -65,10 +74,10 @@ _JS_HIDE_BADGE = """
     setTimeout(hideAll, 500);
     setTimeout(hideAll, 1500);
     
-    // MutationObserver — watch parent DOM, re-hide nếu Streamlit re-render badge
+    // MutationObserver — watch top DOM, re-hide nếu Streamlit re-render badge
     // (vd sau khi user navigate giữa các page, hoặc sau st.rerun massive)
     try {
-        const doc = window.parent.document;
+        const doc = window.top.document;
         if (doc && doc.body) {
             const observer = new MutationObserver(() => {
                 hideAll();
@@ -88,7 +97,7 @@ _JS_HIDE_BADGE = """
 
 def hide_streamlit_branding():
     """
-    Ẩn badge "Hosted with Streamlit" + profile container ở parent frame.
+    Ẩn badge "Hosted with Streamlit" + profile container ở top frame.
     
     Gọi 1 lần ngay sau st.set_page_config() trong app.py.
     
