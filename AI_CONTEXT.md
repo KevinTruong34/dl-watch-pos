@@ -72,7 +72,9 @@ Repo: `KevinTruong34/dl-watch-pos` (POS) · `KevinTruong34/DLW_APP` (web app)
 [ ] Phương án B (nhớ NV qua localStorage thuần) — UX skip bước chọn tài khoản
 [ ] Casso/SePay webhook xác nhận chuyển khoản (B9-1..B9-5 đã chốt nghiệp vụ, paused)
 [ ] Quản lý số dư khách hàng (tiền thừa)
-[ ] Quét mã vạch (Phase 2B)
+[✓] Quét mã vạch live (11-12/05/2026) — html5-qrcode + st.components.v2
+    POS: ban_hang + doi_tra (items_moi); DLW: chuyen_hang (Tạo/Sửa phiếu)
+    2 file shared: utils/scanner_component.py + utils/barcode.py — sync 2 repo khi fix bug
 [ ] Logs thao tác POS app vào action_logs (web app)
 [ ] LINE notification mở rộng (đổi/trả + phiếu đặt hoàn thành)
 [ ] Cache/spinner perf — tech debt
