@@ -120,52 +120,77 @@ button[aria-label="Manage app"] { display: none !important; }
 }
 
 /* ============ MÀN 1 — Cart ============ */
-/* fix: round6 - cart info button text căn TRÁI + padding-left 4px sát mép */
-[class*="st-key-pos_edit_"] button {
+/* fix: round7 - cart rows wrapper. Padding ngang nhỏ để content gần sát mép.
+   Border + radius tạo visible card. Padding-bottom đủ để giá hiện trong card. */
+.st-key-cart-rows-zone {
+    background: #fff !important;
+    border: 1px solid #ececef !important;
+    border-radius: 12px !important;
+    padding: 8px 6px 4px !important;
+    margin-top: 4px !important;
+}
+
+/* fix: round7 - Force bỏ tất cả padding/gap/margin của Streamlit
+   stHorizontalBlock/Column/Button wrappers inside cart-rows-zone.
+   Streamlit dùng nhiều testid khác nhau qua các version — target hết. */
+.st-key-cart-rows-zone div[data-testid="stHorizontalBlock"] {
+    gap: 0 !important;
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+.st-key-cart-rows-zone [data-testid="stColumn"],
+.st-key-cart-rows-zone [data-testid="column"] {
+    padding: 0 !important;
+    margin: 0 !important;
+}
+.st-key-cart-rows-zone [data-testid="stButton"],
+.st-key-cart-rows-zone .stButton {
+    padding: 0 !important;
+    margin: 0 !important;
+}
+.st-key-cart-rows-zone [data-testid="stVerticalBlock"] {
+    gap: 0 !important;
+}
+
+/* fix: round7 - Edit button (cart line info) flush trái, no border/bg */
+[class*="st-key-pos_edit_"] button,
+.st-key-cart-rows-zone [data-key^="pos_edit_"] button {
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
     text-align: left !important;
     justify-content: flex-start !important;
-    padding: 12px 4px !important;
+    padding: 4px 0 !important;
     min-height: 0 !important;
+    margin: 0 !important;
 }
-[class*="st-key-pos_edit_"] button:hover { background: #fafafa !important; }
+[class*="st-key-pos_edit_"] button:hover,
+.st-key-cart-rows-zone [data-key^="pos_edit_"] button:hover {
+    background: rgba(0,0,0,0.02) !important;
+}
 [class*="st-key-pos_edit_"] button p,
 [class*="st-key-pos_edit_"] button div {
     text-align: left !important;
-    line-height: 1.3 !important;
+    line-height: 1.35 !important;
     margin: 0 !important;
+    padding: 0 !important;
 }
 [class*="st-key-pos_edit_"] button > div {
     align-items: flex-start !important;
     width: 100% !important;
 }
 
-/* fix: round6 - cart rows wrapper: bỏ padding ngang để content sát mép. */
-.st-key-cart-rows-zone {
-    background: #fff !important;
-    border: 1px solid #ececef !important;
-    border-radius: 12px !important;
-    padding: 4px 4px !important;
-    margin-top: 4px !important;
-}
-/* fix: round6 - bỏ gap + padding của Streamlit columns trong cart-rows-zone */
-.st-key-cart-rows-zone div[data-testid="stHorizontalBlock"] {
-    gap: 0 !important;
-    width: 100% !important;
-}
-.st-key-cart-rows-zone [data-testid="stColumn"] {
-    padding: 0 !important;
-}
-
-/* fix: round4 - ✕ button: TOP-right, no border. fix: round6 - flush sát phải */
+/* fix: round7 - ✕ button: flush sát phải, no border/bg. margin-left:auto đẩy
+   ✕ về phải trong col_x bất kể col_x width thực tế. */
 [class*="st-key-pos_del_"] {
     display: flex !important;
     justify-content: flex-end !important;
     padding: 0 !important;
+    margin: 0 !important;
 }
-[class*="st-key-pos_del_"] button {
+[class*="st-key-pos_del_"] button,
+.st-key-cart-rows-zone [data-key^="pos_del_"] button {
     width: 28px !important; min-width: 28px !important; max-width: 28px !important;
     height: 28px !important;
     padding: 0 !important;
@@ -174,7 +199,7 @@ button[aria-label="Manage app"] { display: none !important; }
     color: #9a9aab !important;
     font-size: 14px !important;
     box-shadow: none !important;
-    margin: 0 !important;
+    margin: 0 0 0 auto !important;
 }
 [class*="st-key-pos_del_"] button:hover { color: #e63946 !important; }
 
@@ -869,12 +894,13 @@ def _render_cart_section():
 def _render_cart_line(line: dict):
     thanh_tien = _calc_thanh_tien(line)
     has_giam = line["giam_gia_dong"] > 0
-    # fix: round3 - 2-col, fix: round4 - cột phải stack [✕ TOP / price BOTTOM]
-    col_info, col_right = st.columns([5, 2])
+    # fix: round7 - đổi sang 2-col [6, 1]: info trái, ✕ phải.
+    # Giá render NGOÀI columns block (sau `with col_x:` đóng) để chắc chắn
+    # nằm trong cart-rows-zone container, không phụ thuộc col_right height.
+    col_info, col_x = st.columns([6, 1])
 
     with col_info:
         suffix = f"  ·  giảm {fmt_vnd(line['giam_gia_dong'])}" if has_giam else ""
-        # fix: round4 - 2 dòng: "**tên** · SL n" / "Mã: ...", bỏ inline "× giá"
         if st.button(
             f"**{line['ten_hang']}**  ·  SL {line['so_luong']}\n\n"
             f"Mã: {line['ma_hang']}{suffix}",
@@ -883,19 +909,22 @@ def _render_cart_line(line: dict):
         ):
             _dialog_sua_dong(line)
 
-    with col_right:
-        # fix: round4 - ✕ ở TOP-right (no border)
+    with col_x:
+        # fix: round7 - ✕ TOP-right, no border, no bg
         if st.button("✕", key=f"pos_del_{line['ma_hang']}",
                      help="Xóa khỏi giỏ"):
             _remove_from_cart(line["ma_hang"])
             st.rerun()
-        # fix: round5 - giá render sát ✕, bỏ padding để không tràn ngoài card
-        st.markdown(
-            f"<div style='font-weight:700;font-size:15px;color:#e63946;"
-            f"text-align:right;white-space:nowrap;margin:2px 0 0;'>"
-            f"{fmt_vnd(thanh_tien)}</div>",
-            unsafe_allow_html=True,
-        )
+
+    # fix: round7 - giá BELOW row (outside columns), inside cart-rows-zone.
+    # Tránh stacking trong col_right gây overflow ngoài card.
+    st.markdown(
+        f"<div style='font-weight:700;font-size:15px;color:#e63946;"
+        f"text-align:right;white-space:nowrap;padding:0 6px 4px 0;"
+        f"margin-top:-12px;'>"
+        f"{fmt_vnd(thanh_tien)}</div>",
+        unsafe_allow_html=True,
+    )
 
 
 # ════════════════════════════════════════════════════════════════
