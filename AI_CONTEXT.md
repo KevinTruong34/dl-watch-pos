@@ -1,7 +1,7 @@
 # AI_CONTEXT.md — DL Watch POS App
 
-**Cập nhật:** 10/05/2026
-**Mục đích:** Bàn giao context đầy đủ cho Claude session mới. POS app đã qua **Bước 1 → Bước 8 + LINE notification + URL session token + APSC display + SPK/DVPS open-price refactor**, đang ở giai đoạn polish và làm tính năng phụ.
+**Cập nhật:** 12/05/2026
+**Mục đích:** Bàn giao context đầy đủ cho Claude session mới. POS app đã qua **Bước 1 → Bước 8 + LINE notification + URL session token + APSC display + SPK/DVPS open-price refactor + Barcode Live Scan + Hide Streamlit Branding**, đang ở giai đoạn polish và làm tính năng phụ.
 
 ---
 
@@ -11,7 +11,7 @@
 
 User dùng tiếng Việt, xưng "mình/bạn". Tuân theo `CLAUDE.md` (đã upload lên project knowledge): think before coding, simplicity first, surgical changes, goal-driven execution. **Luôn hỏi clarifying questions trước khi implement, không pick interpretation silently.**
 
-**★ Workflow mới đã proven (lưu trong memory):** 2-phase cho big features — Phase A planning trên Claude in app (front-load decisions → PLAN.md chi tiết), Phase B execute với Claude Code (pre-flight verify, commit từng phase, smoke tests trước INSERT thật). Pattern này thành công với SPK/DVPS refactor + bộ Admin Override (B1, B2a, B2b).
+**★ Workflow mới đã proven (lưu trong memory):** 2-phase cho big features — Phase A planning trên Claude in app (front-load decisions → PLAN.md chi tiết), Phase B execute với Claude Code (pre-flight verify, commit từng phase, smoke tests trước INSERT thật). Pattern này thành công với SPK/DVPS refactor + bộ Admin Override (B1, B2a, B2b) + Barcode Live Scan.
 
 ---
 
@@ -67,12 +67,16 @@ Repo: `KevinTruong34/dl-watch-pos` (POS) · `KevinTruong34/DLW_APP` (web app)
 [✓] SPK/DVPS Refactor (08/05/2026): is_open_price flag — POS RPC patched
 [✓] Admin Override (DLW side, 08-09/05/2026): B1 (tạo) + B2a (sửa HĐ POS) + B2b (sửa PDT/SC)
 [✓] APSC K80 + Cancel (10/05/2026): in K80 từ DLW + RPC huy_hoa_don_apsc
+[✓] Barcode Live Scan (11/05/2026): html5-qrcode + st.components.v2 — UNIQUE index ma_vach
+    Wire: ban_hang.py (Màn 1) + doi_tra.py (items_moi only)
+    Defer DLW chuyen_hang (đã wire 12/05)
+[✓] Hide Streamlit Branding (12/05/2026): utils/hide_streamlit_badge.py
+    JS window.top.document hide badge + profile container ở góc dưới phải
 
 [Pending — kỹ thuật phụ]
 [ ] Phương án B (nhớ NV qua localStorage thuần) — UX skip bước chọn tài khoản
 [ ] Casso/SePay webhook xác nhận chuyển khoản (B9-1..B9-5 đã chốt nghiệp vụ, paused)
 [ ] Quản lý số dư khách hàng (tiền thừa)
-[ ] Quét mã vạch (Phase 2B)
 [ ] Logs thao tác POS app vào action_logs (web app)
 [ ] LINE notification mở rộng (đổi/trả + phiếu đặt hoàn thành)
 [ ] Cache/spinner perf — tech debt
@@ -81,6 +85,120 @@ Repo: `KevinTruong34/dl-watch-pos` (POS) · `KevinTruong34/DLW_APP` (web app)
 ```
 
 User đã **bỏ KiotViet** — adapter ở Bước 6 handle sẵn.
+
+---
+
+## ★ BARCODE LIVE SCAN (11/05/2026)
+
+### Mục đích
+
+NV quét tem mã vạch trên hộp SP bằng camera điện thoại để add vào giỏ — nhanh hơn search text. Apply ở Bán hàng + Đổi/trả (items_moi).
+
+### Architecture
+
+- **Decode:** html5-qrcode (CDN unpkg) — browser-side, KHÔNG dùng pyzbar server-side (đã thử Phase 0 v1 fail UX vì user phải bấm chụp)
+- **JS↔Python bridge:** `st.components.v2.component` với `setTriggerValue` pattern (native Streamlit, KHÔNG dùng streamlit-js / streamlit-javascript)
+- **Camera:** Live continuous scan với toggle ⏸ Dừng / ▶️ Tiếp tục
+- **Cooldown:** 1.5s JS-side + ts dedup Python-side (chống re-scan cùng tem)
+- **Lookup:** Single-tier `WHERE ma_vach = decoded_text AND active = true` (KHÔNG fallback ma_hang)
+
+### Schema
+
+- Cột `hang_hoa.ma_vach TEXT` đã tồn tại sẵn, data đầy đủ
+- Đã thêm: `CREATE UNIQUE INDEX hang_hoa_ma_vach_idx ON hang_hoa(ma_vach) WHERE ma_vach IS NOT NULL AND active = true`
+- Pattern partial UNIQUE giống `hang_hoa_open_price_idx`
+
+### Files mới
+
+```
+pos_app/sql/pos_patch_09_barcode_unique.sql   # Schema migration (Phase 1)
+pos_app/utils/scanner_component.py            # Reusable live scanner component
+pos_app/utils/barcode.py                      # lookup_hang_by_ma_vach helper
+```
+
+### Wire points
+
+- `pos_app/modules/ban_hang.py`: Icon 📷 cạnh search input Màn 1 → bấm → @st.dialog one-shot quét → add giỏ → toast → đóng dialog
+- `pos_app/modules/doi_tra.py`: tương tự cho items_moi (KHÔNG cho items_tra — items_tra từ HĐ gốc đã sẵn)
+
+Pattern dialog one-shot: camera CHỈ mount khi dialog open (vs expander luôn render trong DOM → bug xin permission lặp lại mỗi lần load trang).
+
+### Adapter schema cho dialog
+
+```python
+# lookup_hang_by_ma_vach trả: {ma_hang, ten_hang, loai_sp, is_open_price, gia_ban, ton}
+# ban_hang cart adapter: ma_hang, ten_hang, so_luong=1, don_gia=gia_ban, ton_kho=ton, loai_sp, is_open
+# doi_tra cart adapter: ma_hang, ten_hang, so_luong=1, don_gia=gia_ban, ton, loai_sp, is_open
+```
+
+### Edge cases handle
+
+- Open-price (SPK/DVPS) match được ma_vach → add bình thường, giá copy từ `gia_ban`
+- Dịch vụ → ton=999999 không block
+- Tồn = 0 hàng thường → warning "Hết hàng", dialog stay open (KHÔNG cho add)
+- SP đã có trong giỏ + vượt tồn → warning, KHÔNG cho add thêm
+- Đổi/trả: chặn Dịch vụ (KHÔNG đổi hàng lấy dịch vụ)
+
+---
+
+## ★ HIDE STREAMLIT BRANDING (12/05/2026)
+
+### Mục đích
+
+Ẩn logo "Hosted with Streamlit" + profile container ở góc dưới phải màn hình — NV mobile hay tap nhầm logo Streamlit.
+
+### Architecture
+
+- Workaround tạm thời, KHÔNG phải official API của Streamlit Cloud
+- DOM badge nằm ở **top window** (`dl-watch-pos.streamlit.app`), iframe app cùng origin → `window.top.document` accessible
+- Dùng `st.components.v1.html` chứa `<script>` chạy JS thao tác `window.top.document.querySelectorAll`
+- **CRITICAL:** dùng `window.top` (KHÔNG `window.parent`) — `components.html()` tạo iframe NESTED bên trong iframe app POS, nên `parent` = iframe app (không có badge), `top` = top window (có badge)
+
+### File mới
+
+```
+pos_app/utils/hide_streamlit_badge.py   # Public API: hide_streamlit_branding()
+```
+
+### Wire
+
+Trong `pos_app/app.py`, ngay sau `st.set_page_config(...)`:
+
+```python
+from utils.hide_streamlit_badge import hide_streamlit_branding
+hide_streamlit_branding()
+```
+
+### Selectors
+
+```javascript
+'a[href*="streamlit.io/cloud"]'     // Badge "Hosted with Streamlit"
+'[class*="_profileContainer"]'       // Profile avatar
+'[class*="viewerBadge"]'             // Fallback class patterns
+'[class*="_viewerBadge"]'
+'[data-testid="stStatusWidget"]'
+'button[title="Manage app"]'
+'button[aria-label="Manage app"]'
+```
+
+### Defense mechanisms
+
+- Run hideAll() ngay khi script load
+- Retry sau 100ms / 500ms / 1500ms (Streamlit có thể render badge async)
+- MutationObserver watch top.document.body — re-hide nếu Streamlit re-render badge (sau st.rerun, navigate)
+
+### Note maintenance
+
+Workaround dễ break khi Streamlit Cloud update:
+- DOM structure (class name / href badge đổi) — partial selector `[class*=...]` chỉ tolerant 1 phần
+- Iframe sandbox policy thêm flag block top access
+- Tách iframe sang subdomain khác → Same-Origin block
+
+→ Nếu badge xuất hiện lại sau update → inspect DOM lại + cập nhật SELECTORS array trong `hide_streamlit_badge.py`
+
+### Shared 2 repo
+
+`utils/hide_streamlit_badge.py` shared với DLW repo (copy thuần, không submodule). Fix bug 1 file phải sync sang repo còn lại.
 
 ---
 
@@ -140,7 +258,7 @@ END IF;
 
 ```
 pos_app/
-├── app.py                              # Entry, header, routing tab, MutationObserver inject inputmode
+├── app.py                              # Entry, header, routing tab, MutationObserver inject inputmode, hide_streamlit_branding()
 ├── requirements.txt
 ├── README.md
 ├── .streamlit/
@@ -159,19 +277,23 @@ pos_app/
 │   ├── pos_patch_05_timezone_fix.sql   # Fix end-of-day VN trong RPC
 │   ├── pos_patch_06_dat_hang.sql       # Bước 8
 │   ├── pos_patch_07_session.sql        # Session token + RPC validate
-│   └── pos_patch_08_open_price.sql     # ★ SPK/DVPS open-price (08/05/2026)
+│   ├── pos_patch_08_open_price.sql     # ★ SPK/DVPS open-price (08/05/2026)
+│   └── pos_patch_09_barcode_unique.sql # ★ Barcode UNIQUE index (11/05/2026)
 ├── utils/
 │   ├── __init__.py
 │   ├── config.py                       # APP_NAME, ALL_BRANCHES, CN_SHORT, CN_INFO
 │   ├── db.py                           # supabase client + load + RPC + validators + APSC loaders + is_open_price_item
 │   ├── auth.py                         # PIN flow, session URL token, banner
 │   ├── helpers.py                      # now_vn, today_vn, fmt_vnd, end_of_today_vn_iso
-│   └── print_queue.py                  # Daemon enqueue cho HĐ POS + đổi/trả + đặt hàng
+│   ├── print_queue.py                  # Daemon enqueue cho HĐ POS + đổi/trả + đặt hàng
+│   ├── scanner_component.py            # ★ MỚI (11/05): live_scanner() — html5-qrcode + st.components.v2
+│   ├── barcode.py                      # ★ MỚI (11/05): lookup_hang_by_ma_vach
+│   └── hide_streamlit_badge.py         # ★ MỚI (12/05): hide_streamlit_branding() — JS window.top
 └── modules/
     ├── __init__.py
-    ├── ban_hang.py                     # Màn 1 → 2 → 3 + open-price input UI + bypass stock cho open-price
+    ├── ban_hang.py                     # ★ patched 11/05: dialog scan + open-price input UI + bypass stock cho open-price
     ├── lich_su.py                      # List HĐ + AHDD merge + APSC display + modal chi tiết + hủy
-    ├── doi_tra.py                      # Bước 7: đổi/trả + open-price logic
+    ├── doi_tra.py                      # ★ patched 11/05: dialog scan items_moi + Bước 7 đổi/trả + open-price
     └── dat_hang.py                     # Bước 8: 4 trạng thái phiếu đặt
 ```
 
@@ -186,7 +308,7 @@ pos_app/
 | `nhan_vien` | id, username, ho_ten, role, active. **role='admin'** dùng cho admin override (DLW) |
 | `nhan_vien_chi_nhanh` | Phân quyền CN |
 | `chi_nhanh` | 3 CN |
-| `hang_hoa` | Master sản phẩm. **★ Cột mới `is_open_price BOOLEAN`** + `loai_sp`, `active` |
+| `hang_hoa` | Master sản phẩm. **★ Cột `is_open_price BOOLEAN` + `ma_vach TEXT`** + `loai_sp`, `active` |
 | `the_kho` | **Tồn kho LIVE (SSOT sau Hướng B)** — `Mã hàng`, `Chi nhánh`, `Tồn cuối kì` |
 | `khach_hang` | Unique key `sdt`. `tong_ban` cộng dồn KiotViet + POS + AHDD chenh_lech |
 | `sessions` | Session token |
@@ -195,6 +317,13 @@ pos_app/
 | `print_queue` | **Cột mới: `source_app` (default 'pos_app')** — DLW dùng `'dlw_app'` |
 | `admin_edit_history` | **★ Bảng mới (B2a)** — snapshot before/after JSONB cho mọi edit của admin |
 | `phieu_chuyen_kho`, `phieu_nhap_hang`, `phieu_kiem_ke`, ... | App cũ |
+
+### Indexes quan trọng
+
+```sql
+hang_hoa_open_price_idx              -- WHERE is_open_price = true
+hang_hoa_ma_vach_idx (UNIQUE)        -- ★ MỚI WHERE ma_vach IS NOT NULL AND active = true
+```
 
 ### Table riêng của POS (không đổi)
 
@@ -305,10 +434,15 @@ POS hiển thị HĐ APSC từ `hoa_don` table (read-only, không có nút Hủy
 | D24 | APSC display trong POS lich_su: read-only, KHÔNG Hủy/In/Đổi | Action đặt trên DLW (10/05) |
 | D25 | Hướng B: `the_kho` = SSOT | POS thừa hưởng |
 | D26 | Logs thao tác POS chưa ghi vào `action_logs` | Pending |
-| **D27** | **★ SPK/DVPS: flag `is_open_price` thay convention OR-list** | Future-proof, server-side check, scalable |
-| **D28** | **★ Admin Override (DLW): `nhan_vien.role='admin'` server-side check** | Reuse cột sẵn có, không tạo permission table |
-| **D29** | **★ APSC K80 + Cancel: in K80 + nút action đặt trên DLW (KHÔNG POS)** | Tránh duplicate code 2 repo, scope hẹp |
-| **D30** | **★ `print_queue.source_app`: distinguish 'pos_app' vs 'dlw_app'** | Trace nguồn gốc job in |
+| D27 | ★ SPK/DVPS: flag `is_open_price` thay convention OR-list | Future-proof, server-side check, scalable |
+| D28 | ★ Admin Override (DLW): `nhan_vien.role='admin'` server-side check | Reuse cột sẵn có, không tạo permission table |
+| D29 | ★ APSC K80 + Cancel: in K80 + nút action đặt trên DLW (KHÔNG POS) | Tránh duplicate code 2 repo, scope hẹp |
+| D30 | ★ `print_queue.source_app`: distinguish 'pos_app' vs 'dlw_app' | Trace nguồn gốc job in |
+| **D31** | **★ Barcode scan: html5-qrcode CDN + st.components.v2.component, KHÔNG pyzbar server-side** | Live scan UX (POC v1 chụp ảnh fail UX) |
+| **D32** | **★ Barcode lookup chỉ ma_vach (single-tier), KHÔNG fallback ma_hang** | ma_vach ≠ ma_hang ở dấu chấm/gạch (lịch sử import), fallback vô ích |
+| **D33** | **★ Barcode scan chỉ items_moi của doi_tra, KHÔNG items_tra** | items_tra từ HĐ gốc đã sẵn, không cần scan |
+| **D34** | **★ Dialog one-shot scan thay vì expander inline** | Camera CHỈ mount khi dialog open → tránh xin permission lặp lại mỗi load trang |
+| **D35** | **★ Hide Streamlit branding qua JS window.top.document, KHÔNG dùng CSS local** | CSS local không reach top frame; `components.html()` tạo iframe nested → window.parent = iframe app, phải dùng window.top |
 
 ---
 
@@ -358,17 +492,42 @@ _build_apsc_dict(ma_hd, rows)
 load_apsc_history(chi_nhanh, from_date_iso=None, limit=100)
 search_apsc(keyword, branches, limit=30)
 
-# ★ MỚI: Open-price helper (08/05/2026)
+# Open-price helper (08/05/2026)
 is_open_price_item(ma_hang, hang_hoa_dict=None) -> bool
 ```
 
-### `modules/ban_hang.py` (★ patched 08/05)
+### `utils/scanner_component.py` (★ 11/05/2026)
 
-UI cart: nếu item có `is_open_price=true` → render `st.number_input` cho đơn giá editable. Stock check skip cho open-price (consistent với RPC).
+```python
+def live_scanner(key: str) -> dict | None:
+    """Render live barcode scanner. Returns {code, type, ts} or None.
+    Uses html5-qrcode CDN + st.components.v2.component."""
+```
 
-### `modules/doi_tra.py` (★ patched 08/05)
+### `utils/barcode.py` (★ 11/05/2026)
 
-Tương tự `ban_hang.py` cho items_moi và items_tra. Open-price không cần check stock khi đổi.
+```python
+def lookup_hang_by_ma_vach(code: str, chi_nhanh: str) -> dict:
+    """Lookup SP theo ma_vach, kèm tồn ở chi_nhanh.
+    Returns {ok, item} or {ok=False, error}."""
+```
+
+### `utils/hide_streamlit_badge.py` (★ 12/05/2026)
+
+```python
+def hide_streamlit_branding():
+    """Hide badge + profile container ở top frame.
+    Gọi 1 lần ngay sau st.set_page_config() trong app.py.
+    Uses st.components.v1.html + JS window.top.document."""
+```
+
+### `modules/ban_hang.py` (★ patched 11/05)
+
+UI cart: nếu item có `is_open_price=true` → render `st.number_input` cho đơn giá editable. Stock check skip cho open-price (consistent với RPC). **Thêm dialog `_dialog_quet_ma_vach()` one-shot scan icon 📷 cạnh search input Màn 1.**
+
+### `modules/doi_tra.py` (★ patched 11/05)
+
+Tương tự `ban_hang.py` cho items_moi và items_tra. Open-price không cần check stock khi đổi. **Thêm dialog `_dialog_quet_ma_vach_doi_tra()` one-shot scan ở section items_moi (KHÔNG items_tra).**
 
 ### `modules/lich_su.py`
 
@@ -427,7 +586,7 @@ head["Người bán"]
 head["Mã YCSC"]
 ```
 
-### 10. ★ Open-price detection pattern (mới)
+### 10. ★ Open-price detection pattern
 
 ```python
 # Python
@@ -442,6 +601,40 @@ IF NOT is_open_price_sql(v_ma_hang) THEN
     -- check tồn kho + UPDATE the_kho
 END IF;
 ```
+
+### 11. ★ Barcode scan pattern (one-shot dialog)
+
+```python
+@st.dialog("📷 Quét mã vạch")
+def _dialog_quet_ma_vach(chi_nhanh: str):
+    from utils.scanner_component import live_scanner
+    from utils.barcode import lookup_hang_by_ma_vach
+    
+    scan = live_scanner(key="scan_xxx_dialog")
+    if not scan: return
+    
+    # Dedup ts (component v2 có thể trigger nhiều lần cùng scan)
+    last_ts = st.session_state.get("_scan_xxx_last_ts")
+    if last_ts == scan.get("ts"): return
+    st.session_state["_scan_xxx_last_ts"] = scan.get("ts")
+    
+    result = lookup_hang_by_ma_vach(scan["code"], chi_nhanh)
+    # ... add cart logic ...
+    st.session_state["_scan_pending_toast"] = item["ten_hang"]
+    st.rerun()  # close dialog + toast hiện ở màn ngoài
+```
+
+Pattern toast OUTSIDE dialog: dialog unmount sau rerun → toast hiện ở `_render_search_section()` qua check `_scan_pending_toast`.
+
+### 12. ★ Hide Streamlit branding pattern
+
+```python
+# Trong app.py, ngay sau set_page_config
+from utils.hide_streamlit_badge import hide_streamlit_branding
+hide_streamlit_branding()  # JS components.v1.html → window.top.document
+```
+
+CRITICAL: dùng `window.top` (KHÔNG `window.parent`) trong JS — `components.html()` tạo iframe nested.
 
 ---
 
@@ -462,7 +655,7 @@ END IF;
 - Khi user hỏi clarification, dùng `ask_user_input_v0` cho options nhanh
 - Patches dạng search-replace inline để user apply tay (file > 500 dòng không rewrite full)
 - Recommend pattern atomic RPC + verify Supabase queries trước khi sửa
-- **★ Workflow lớn: 2-phase A planning + B execute với Claude Code** (proven trên SPK/DVPS, B1, B2a, B2b)
+- **★ Workflow lớn: 2-phase A planning + B execute với Claude Code** (proven trên SPK/DVPS, B1, B2a, B2b, Barcode Scan)
 
 ---
 
@@ -489,6 +682,7 @@ Claude session mới nên:
 | 4 | UI admin xem session POS active | Pending | DB schema có sẵn (LS-3) |
 | 5 | `use_container_width` deprecated | Pending | Cần đổi width='stretch' toàn codebase trước 31/12/2025 |
 | 6 | Daemon Windows Service thay run.bat | Pending | Auto-start không cần manual |
+| 7 | Maintenance hide_streamlit_badge.py nếu Streamlit update DOM | Watch | Re-inspect + cập nhật SELECTORS array |
 
 ---
 
@@ -507,8 +701,12 @@ Claude session mới nên:
 | HĐ từ phiếu đặt báo "không đủ tồn" | RPC quên `bypass_stock_check=true` | Patch 06 đã fix |
 | APSC LINE gửi 3 tin/HĐ | Dedupe lt id không match | Check `hoa_don` có cột `id` PK |
 | In K80 ra CJK/lỗi tiếng Việt | Codepage không match | ✅ Đã solve qua raster bitmap (07/05) |
-| **★ Open-price hàng vẫn check kho** | RPC chưa patch | Verify RPC có dùng `is_open_price_sql()` |
-| **★ POS RPC fail "duplicate ma_phieu"** | Race với SC seq | Đã fix dùng `nextval('sc_seq')` (08/05) |
+| ★ Open-price hàng vẫn check kho | RPC chưa patch | Verify RPC có dùng `is_open_price_sql()` |
+| ★ POS RPC fail "duplicate ma_phieu" | Race với SC seq | Đã fix dùng `nextval('sc_seq')` (08/05) |
+| **★ Camera scan không mở trên iPhone Safari** | Permission denied lần đầu | Refresh → Allow camera khi browser hỏi |
+| **★ Scan ra mã nhưng "Không tìm thấy"** | `ma_vach` trong DB strip dấu `.` `-` (lịch sử) | NV gõ tay lại trong form Hàng hóa DLW |
+| **★ Quét cùng tem nhiều lần liên tiếp ra trùng** | Cooldown chưa fire | Đợi 1.5s hoặc đóng dialog mở lại |
+| **★ Badge "Hosted with Streamlit" xuất hiện lại** | Streamlit Cloud update DOM | Inspect lại → cập nhật SELECTORS trong `hide_streamlit_badge.py` |
 
 ---
 
