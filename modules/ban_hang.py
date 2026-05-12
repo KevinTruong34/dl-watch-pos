@@ -120,14 +120,14 @@ button[aria-label="Manage app"] { display: none !important; }
 }
 
 /* ============ MÀN 1 — Cart ============ */
-/* fix: round2 - cart info button text căn TRÁI cứng (Streamlit default center) */
+/* fix: round6 - cart info button text căn TRÁI + padding-left 4px sát mép */
 [class*="st-key-pos_edit_"] button {
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
     text-align: left !important;
     justify-content: flex-start !important;
-    padding: 12px 6px !important;
+    padding: 12px 4px !important;
     min-height: 0 !important;
 }
 [class*="st-key-pos_edit_"] button:hover { background: #fafafa !important; }
@@ -142,19 +142,28 @@ button[aria-label="Manage app"] { display: none !important; }
     width: 100% !important;
 }
 
-/* fix: round3 - cart rows wrapper = white card có border */
+/* fix: round6 - cart rows wrapper: bỏ padding ngang để content sát mép. */
 .st-key-cart-rows-zone {
     background: #fff !important;
     border: 1px solid #ececef !important;
     border-radius: 12px !important;
-    padding: 2px 12px !important;
+    padding: 4px 4px !important;
     margin-top: 4px !important;
 }
+/* fix: round6 - bỏ gap + padding của Streamlit columns trong cart-rows-zone */
+.st-key-cart-rows-zone div[data-testid="stHorizontalBlock"] {
+    gap: 0 !important;
+    width: 100% !important;
+}
+.st-key-cart-rows-zone [data-testid="stColumn"] {
+    padding: 0 !important;
+}
 
-/* fix: round4 - ✕ button: TOP-right, no border, no background */
+/* fix: round4 - ✕ button: TOP-right, no border. fix: round6 - flush sát phải */
 [class*="st-key-pos_del_"] {
     display: flex !important;
     justify-content: flex-end !important;
+    padding: 0 !important;
 }
 [class*="st-key-pos_del_"] button {
     width: 28px !important; min-width: 28px !important; max-width: 28px !important;
@@ -190,23 +199,30 @@ button[aria-label="Manage app"] { display: none !important; }
     margin: 0 !important;
 }
 
-/* ============ STICKY FOOTER (cả 2 màn) ============ */
-/* fix: round5 - dùng 100vw + calc(50% - 50vw) để span đúng viewport,
-   không phụ thuộc Streamlit block-container padding (round 4 -1rem chưa đủ phía phải) */
+/* ============ FIXED FOOTER (cả 2 màn) ============ */
+/* fix: round6 - đổi sang position:fixed full-width. Sticky + negative
+   margin round 4/5 vẫn không đủ span 2 mép vì block-container có wrapper
+   padding mà mình không chắc dimensions. Fixed thoát mọi parent containing
+   block → chắc chắn đụng 2 mép viewport. Compensate bằng padding-bottom
+   trên .block-container để content cuối không bị che. */
 .st-key-pos-footer-sticky,
 .st-key-pos3-footer-sticky {
-    position: sticky !important;
+    position: fixed !important;
     bottom: 0 !important;
-    z-index: 30 !important;
-    width: 100vw !important;
-    margin-left: calc(50% - 50vw) !important;
-    margin-right: calc(50% - 50vw) !important;
-    margin-top: 14px !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    z-index: 100 !important;
     background: #fff !important;
     border-top: 1px solid #ececef !important;
     padding: 12px 1rem calc(16px + env(safe-area-inset-bottom)) !important;
     box-shadow: 0 -8px 24px rgba(0,0,0,0.04) !important;
     box-sizing: border-box !important;
+}
+/* fix: round6 - reserve space cho fixed footer (đủ chỗ cho cả màn 2 breakdown 3 dòng + CTA) */
+.main .block-container,
+[data-testid="stMainBlockContainer"] {
+    padding-bottom: 220px !important;
 }
 .st-key-pos-footer-sticky [data-testid="stBaseButton-primary"],
 .st-key-pos3-footer-sticky [data-testid="stBaseButton-primary"] {
