@@ -113,10 +113,23 @@ button[aria-label="Manage app"] { display: none !important; }
     width: 100% !important;
 }
 
-/* fix: round2 - × delete 32x32, margin-top:14px để align với tên hàng */
+/* fix: round3 - cart rows wrapper = white card có border */
+.st-key-cart-rows-zone {
+    background: #fff !important;
+    border: 1px solid #ececef !important;
+    border-radius: 12px !important;
+    padding: 2px 12px !important;
+    margin-top: 4px !important;
+}
+
+/* fix: round3 - ✕ button: stacked dưới price trong cùng cột, căn phải */
+[class*="st-key-pos-del-"] {
+    display: flex !important;
+    justify-content: flex-end !important;
+}
 [class*="st-key-pos-del-"] button {
-    width: 32px !important; min-width: 32px !important; max-width: 32px !important;
-    height: 32px !important;
+    width: 28px !important; min-width: 28px !important; max-width: 28px !important;
+    height: 28px !important;
     padding: 0 !important;
     border: 1px solid #ececef !important;
     border-radius: 8px !important;
@@ -124,7 +137,7 @@ button[aria-label="Manage app"] { display: none !important; }
     color: #9a9aab !important;
     font-size: 13px !important;
     box-shadow: none !important;
-    margin-top: 14px !important;
+    margin: 0 !important;
 }
 
 /* fix: round2 - "Xóa hết" 28x28 pill (was 26px) */
@@ -796,7 +809,8 @@ def _render_cart_section():
 def _render_cart_line(line: dict):
     thanh_tien = _calc_thanh_tien(line)
     has_giam = line["giam_gia_dong"] > 0
-    col_info, col_price, col_x = st.columns([5, 2, 1])
+    # fix: round3 - 2-col, cột phải stack [price trên / ✕ dưới]
+    col_info, col_right = st.columns([5, 2])
 
     with col_info:
         suffix = f"  ·  giảm {fmt_vnd(line['giam_gia_dong'])}" if has_giam else ""
@@ -810,15 +824,13 @@ def _render_cart_line(line: dict):
         ):
             _dialog_sua_dong(line)
 
-    with col_price:
+    with col_right:
         st.markdown(
             f"<div style='font-weight:700;font-size:15px;color:#e63946;"
-            f"text-align:right;white-space:nowrap;padding-top:14px;'>"
+            f"text-align:right;white-space:nowrap;padding:14px 0 6px;'>"
             f"{fmt_vnd(thanh_tien)}</div>",
             unsafe_allow_html=True,
         )
-
-    with col_x:
         if st.button("✕", key=f"pos_del_{line['ma_hang']}",
                      help="Xóa khỏi giỏ"):
             _remove_from_cart(line["ma_hang"])
@@ -1022,6 +1034,36 @@ def _render_section_khach_hang():
         }
         return
 
+    # fix: round3 - nếu đã có cached match KH → render compact row (skip input)
+    cached_kh = st.session_state.get("pos3_lookup_result")
+    cached_sdt = st.session_state.get("pos3_last_lookup_sdt", "")
+    if cached_kh and cached_sdt:
+        st.markdown(
+            f"<div style='display:flex;align-items:center;gap:10px;"
+            f"padding:10px 14px;background:#fff;border-radius:12px;"
+            f"border:1px solid #ececef;margin-top:6px;'>"
+            f"<span style='font-size:13px;color:#6b6b7b;font-weight:600;'>SĐT</span>"
+            f"<div style='flex:1;font-family:ui-monospace,monospace;"
+            f"font-size:14px;color:#1a1a2e;letter-spacing:0.3px;'>{cached_sdt}</div>"
+            f"<div style='font-size:11px;font-weight:600;color:#16a34a;"
+            f"background:#ecfdf5;padding:3px 8px;border-radius:999px;"
+            f"white-space:nowrap;'>✓ {cached_kh['ten_kh']}</div>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+        if st.button("Đổi SĐT khách", key="pos1_change_sdt"):
+            st.session_state.pop("pos3_last_lookup_sdt", None)
+            st.session_state.pop("pos3_lookup_result", None)
+            st.session_state["pos3_sdt_input"] = ""
+            st.rerun()
+        st.session_state["pos3_kh_data"] = {
+            "ma_kh":  cached_kh.get("ma_kh"),
+            "ten_kh": cached_kh.get("ten_kh", ""),
+            "sdt":    cached_sdt,
+            "is_new": False,
+        }
+        return
+
     # fix: round2 - collapse label, dùng placeholder thay vì label dòng riêng
     with st.container(key="numkb-tel-pos3-sdt"):
         sdt = st.text_input(
@@ -1050,18 +1092,14 @@ def _render_section_khach_hang():
         kh = lookup_khach_hang_by_sdt(sdt_clean)
         st.session_state["pos3_last_lookup_sdt"] = sdt_clean
         st.session_state["pos3_lookup_result"]   = kh
+        # fix: round3 - nếu match → rerun để swap sang compact mode
+        if kh:
+            st.rerun()
 
     kh = st.session_state.get("pos3_lookup_result")
 
     if kh:
-        st.markdown(
-            f"<div style='display:inline-block;margin-top:6px;"
-            f"font-size:11px;font-weight:600;color:#16a34a;"
-            f"background:#ecfdf5;border:1px solid #bbf7d0;"
-            f"padding:3px 8px;border-radius:999px;'>"
-            f"✓ {kh['ten_kh']}</div>",
-            unsafe_allow_html=True,
-        )
+        # Defensive: should normally rerun above; fall through assigns kh_data.
         st.session_state["pos3_kh_data"] = {
             "ma_kh":  kh.get("ma_kh"),
             "ten_kh": kh.get("ten_kh", ""),
@@ -1157,17 +1195,29 @@ def _render_section_pttt(khach_can_tra: int) -> dict:
     # nhưng checkbox được render SAU 3 pill chips (theo design — chip top, checkbox dưới)
     chia_nhieu = bool(st.session_state.get("pos3_chia_nhieu", False))
 
+    # fix: round3 - PTTT chips có icon, "Chuyển khoản" rút thành "C.khoản" cho vừa 1 hàng
+    PTTT_DISPLAY = ["💵 Tiền mặt", "🏦 C.khoản", "💳 Thẻ"]
+    PTTT_VALUES  = ["Tiền mặt",   "Chuyển khoản", "Thẻ"]
+
+    # fix: round3 - migrate legacy string value (round 1/2) sang index (round 3).
+    # Chạy ngoài branch để cover cả case user switch chia_nhieu off với snapshot cũ.
+    _legacy = st.session_state.get("pos3_pttt_radio")
+    if isinstance(_legacy, str):
+        st.session_state["pos3_pttt_radio"] = (
+            PTTT_VALUES.index(_legacy) if _legacy in PTTT_VALUES else 0
+        )
+
     if not chia_nhieu:
-        # fix: round2 - quay lại st.radio + CSS :has() cho pill chips (Option A).
-        # Key cũ pos3_pttt_radio giữ nguyên.
         with st.container(key="pos3-pttt-radio"):
-            pttt_chon = st.radio(
+            pttt_chon_idx = st.radio(
                 "PTTT",
-                ["Tiền mặt", "Chuyển khoản", "Thẻ"],
+                options=list(range(3)),
+                format_func=lambda i: PTTT_DISPLAY[i],
                 key="pos3_pttt_radio",
                 horizontal=True,
                 label_visibility="collapsed",
             )
+        pttt_chon = PTTT_VALUES[pttt_chon_idx]
 
         # fix: round2 - checkbox "Chia nhiều phương thức" DƯỚI 3 chip
         st.checkbox(
