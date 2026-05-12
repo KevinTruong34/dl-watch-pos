@@ -38,8 +38,7 @@ button[aria-label="Manage app"] { display: none !important; }
 .st-key-pos-search-row div[data-testid="stHorizontalBlock"],
 .st-key-cart-rows-zone div[data-testid="stHorizontalBlock"],
 .st-key-cart-header-zone div[data-testid="stHorizontalBlock"],
-.st-key-pos3-header-row div[data-testid="stHorizontalBlock"],
-.st-key-pos3-pttt-row div[data-testid="stHorizontalBlock"] {
+.st-key-pos3-header-row div[data-testid="stHorizontalBlock"] {
     flex-direction: row !important;
     flex-wrap: nowrap !important;
     gap: 8px !important;
@@ -49,12 +48,18 @@ button[aria-label="Manage app"] { display: none !important; }
 .st-key-pos-search-row div[data-testid="stHorizontalBlock"] > div,
 .st-key-cart-rows-zone div[data-testid="stHorizontalBlock"] > div,
 .st-key-cart-header-zone div[data-testid="stHorizontalBlock"] > div,
-.st-key-pos3-header-row div[data-testid="stHorizontalBlock"] > div,
-.st-key-pos3-pttt-row div[data-testid="stHorizontalBlock"] > div {
+.st-key-pos3-header-row div[data-testid="stHorizontalBlock"] > div {
     min-width: 0 !important;
 }
 
+/* ============ MÀN 1 — Khách hàng ============ */
+/* fix: round2 - margin checkbox→input = 6px (was ~16px from Streamlit default) */
+.st-key-numkb-tel-pos3-sdt { margin-top: 6px !important; }
+/* fix: round2 - badge KH cũ inline, fit-content, không full-width */
+.st-key-pos-kh-badge { display: inline-block; width: auto; }
+
 /* ============ MÀN 1 — Search ============ */
+/* fix: round2 - scan 📷 button 48x48 + font-size 20px để emoji rõ */
 .st-key-pos-scan-btn-wrap [data-testid="stBaseButton-secondary"] {
     width: 48px !important; min-width: 48px !important; max-width: 48px !important;
     height: 48px !important;
@@ -62,7 +67,7 @@ button[aria-label="Manage app"] { display: none !important; }
     border: 1px solid #ececef !important;
     border-radius: 12px !important;
     background: #fff !important;
-    font-size: 1.15rem !important;
+    font-size: 20px !important;
     box-shadow: none !important;
 }
 .st-key-pos-search-row [data-baseweb="input"] > div {
@@ -86,26 +91,32 @@ button[aria-label="Manage app"] { display: none !important; }
 }
 
 /* ============ MÀN 1 — Cart ============ */
-/* Cart info button — flat row, transparent */
+/* fix: round2 - cart info button text căn TRÁI cứng (Streamlit default center) */
 [class*="st-key-pos-edit-"] button {
     background: transparent !important;
     border: none !important;
+    box-shadow: none !important;
     text-align: left !important;
+    justify-content: flex-start !important;
     padding: 12px 6px !important;
     min-height: 0 !important;
-    box-shadow: none !important;
 }
 [class*="st-key-pos-edit-"] button:hover { background: #fafafa !important; }
-[class*="st-key-pos-edit-"] button p {
+[class*="st-key-pos-edit-"] button p,
+[class*="st-key-pos-edit-"] button div {
     text-align: left !important;
     line-height: 1.3 !important;
     margin: 0 !important;
 }
+[class*="st-key-pos-edit-"] button > div {
+    align-items: flex-start !important;
+    width: 100% !important;
+}
 
-/* × delete button — 28×28 outline */
+/* fix: round2 - × delete 32x32, margin-top:14px để align với tên hàng */
 [class*="st-key-pos-del-"] button {
-    width: 28px !important; min-width: 28px !important; max-width: 28px !important;
-    height: 28px !important;
+    width: 32px !important; min-width: 32px !important; max-width: 32px !important;
+    height: 32px !important;
     padding: 0 !important;
     border: 1px solid #ececef !important;
     border-radius: 8px !important;
@@ -113,39 +124,42 @@ button[aria-label="Manage app"] { display: none !important; }
     color: #9a9aab !important;
     font-size: 13px !important;
     box-shadow: none !important;
+    margin-top: 14px !important;
 }
 
-/* "Xóa hết" — red outline pill */
+/* fix: round2 - "Xóa hết" 28x28 pill (was 26px) */
 .st-key-cart-header-zone [data-testid="stBaseButton-secondary"] {
     border: 1px solid #fecaca !important;
     color: #e63946 !important;
     background: #fff !important;
+    min-height: 28px !important;
+    height: 28px !important;
+    padding: 0 10px !important;
     border-radius: 999px !important;
-    min-height: 26px !important;
-    padding: 3px 10px !important;
     font-size: 11px !important;
     font-weight: 600 !important;
-    line-height: 1.2 !important;
+    line-height: 1 !important;
     box-shadow: none !important;
 }
 .st-key-cart-header-zone [data-testid="stBaseButton-secondary"] p {
     font-size: 11px !important;
     font-weight: 600 !important;
-    line-height: 1.2 !important;
+    line-height: 1 !important;
     margin: 0 !important;
 }
 
 /* ============ STICKY FOOTER (cả 2 màn) ============ */
 .st-key-pos-footer-sticky,
 .st-key-pos3-footer-sticky {
-    position: sticky;
-    bottom: 0;
-    z-index: 30;
-    background: #fff;
-    border-top: 1px solid #ececef;
-    padding: 12px 0 calc(16px + env(safe-area-inset-bottom)) !important;
-    margin-top: 12px;
-    box-shadow: 0 -8px 24px rgba(0,0,0,0.04);
+    position: sticky !important;
+    bottom: 0 !important;
+    z-index: 30 !important;
+    background: #fff !important;
+    border-top: 1px solid #ececef !important;
+    padding: 12px 14px calc(16px + env(safe-area-inset-bottom)) !important;
+    /* fix: round2 - negative side margin để footer span sát mép màn */
+    margin: 14px -14px 0 !important;
+    box-shadow: 0 -8px 24px rgba(0,0,0,0.04) !important;
 }
 .st-key-pos-footer-sticky [data-testid="stBaseButton-primary"],
 .st-key-pos3-footer-sticky [data-testid="stBaseButton-primary"] {
@@ -181,57 +195,87 @@ button[aria-label="Manage app"] { display: none !important; }
     box-shadow: none !important;
 }
 
-/* MÀN 2 — Giảm giá segment (active dark) */
-.st-key-pos3-section-giam-gia [role="radiogroup"] {
+/* fix: round2 - MÀN 2 — Giảm giá segment (active dark, text trắng đọc được) */
+.st-key-pos3-gg-mode [role="radiogroup"] {
     display: grid !important;
     grid-template-columns: 1fr 1fr !important;
     gap: 6px !important;
+    flex-direction: unset !important;
 }
-.st-key-pos3-section-giam-gia [role="radiogroup"] > label {
+.st-key-pos3-gg-mode [role="radiogroup"] > label {
     margin: 0 !important;
-    padding: 7px !important;
+    padding: 8px !important;
     text-align: center !important;
-    justify-content: center !important;
     border-radius: 8px !important;
     background: #f3f3f5 !important;
     color: #6b6b7b !important;
     font-weight: 600 !important;
     font-size: 12px !important;
+    cursor: pointer !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
 }
-.st-key-pos3-section-giam-gia [role="radiogroup"] > label:has(input:checked) {
+.st-key-pos3-gg-mode [role="radiogroup"] > label:has(input:checked) {
     background: #1a1a2e !important;
-    color: #fff !important;
+    color: #ffffff !important;
     font-weight: 700 !important;
 }
-.st-key-pos3-section-giam-gia [role="radiogroup"] > label > div:first-child,
-.st-key-pos3-section-giam-gia [role="radiogroup"] svg { display: none !important; }
-.st-key-pos3-section-giam-gia [role="radiogroup"] > label p {
+.st-key-pos3-gg-mode [role="radiogroup"] > label:has(input:checked) p {
+    color: #ffffff !important;
+}
+.st-key-pos3-gg-mode [role="radiogroup"] [data-baseweb="radio"] > div:first-child,
+.st-key-pos3-gg-mode [role="radiogroup"] input + div:first-child {
+    display: none !important;
+}
+.st-key-pos3-gg-mode [role="radiogroup"] svg { display: none !important; }
+.st-key-pos3-gg-mode [role="radiogroup"] > label p {
     color: inherit !important;
     font-weight: inherit !important;
     font-size: 12px !important;
     margin: 0 !important;
 }
 
-/* MÀN 2 — PTTT pill chips (3-button cluster) */
-.st-key-pos3-pttt-row [data-testid="stBaseButton-secondary"],
-.st-key-pos3-pttt-row [data-testid="stBaseButton-primary"] {
-    border-radius: 999px !important;
+/* fix: round2 - MÀN 2 — PTTT 3 pill chips bằng st.radio (Option A) */
+.st-key-pos3-pttt-radio [role="radiogroup"] {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr 1fr !important;
+    gap: 6px !important;
+    flex-direction: unset !important;
+}
+.st-key-pos3-pttt-radio [role="radiogroup"] > label {
+    margin: 0 !important;
     padding: 10px 6px !important;
-    min-height: 0 !important;
+    text-align: center !important;
+    border-radius: 999px !important;
+    background: #ffffff !important;
+    color: #3a3a52 !important;
+    border: 1.5px solid #ececef !important;
     font-weight: 700 !important;
     font-size: 13px !important;
-    box-shadow: none !important;
-    line-height: 1.2 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
 }
-.st-key-pos3-pttt-row [data-testid="stBaseButton-secondary"] {
-    background: #fff !important;
-    border: 1.5px solid #ececef !important;
-    color: #3a3a52 !important;
-}
-.st-key-pos3-pttt-row [data-testid="stBaseButton-primary"] {
+.st-key-pos3-pttt-radio [role="radiogroup"] > label:has(input:checked) {
     background: #fff1f2 !important;
-    border: 1.5px solid #e63946 !important;
+    border-color: #e63946 !important;
     color: #e63946 !important;
+}
+.st-key-pos3-pttt-radio [role="radiogroup"] > label:has(input:checked) p {
+    color: #e63946 !important;
+}
+.st-key-pos3-pttt-radio [role="radiogroup"] [data-baseweb="radio"] > div:first-child,
+.st-key-pos3-pttt-radio [role="radiogroup"] input + div:first-child {
+    display: none !important;
+}
+.st-key-pos3-pttt-radio [role="radiogroup"] svg { display: none !important; }
+.st-key-pos3-pttt-radio [role="radiogroup"] > label p {
+    color: inherit !important;
+    font-weight: inherit !important;
+    font-size: 13px !important;
+    margin: 0 !important;
 }
 </style>
 """
@@ -756,10 +800,11 @@ def _render_cart_line(line: dict):
 
     with col_info:
         suffix = f"  ·  giảm {fmt_vnd(line['giam_gia_dong'])}" if has_giam else ""
+        # fix: round2 - prefix "Mã: " / "SL: " theo design
         if st.button(
             f"**{line['ten_hang']}**\n\n"
-            f"{line['ma_hang']}\n\n"
-            f"SL {line['so_luong']} × {fmt_vnd(line['don_gia'])}{suffix}",
+            f"Mã: {line['ma_hang']}\n\n"
+            f"SL: {line['so_luong']} × {fmt_vnd(line['don_gia'])}{suffix}",
             key=f"pos_edit_{line['ma_hang']}",
             use_container_width=True,
         ):
@@ -977,12 +1022,14 @@ def _render_section_khach_hang():
         }
         return
 
+    # fix: round2 - collapse label, dùng placeholder thay vì label dòng riêng
     with st.container(key="numkb-tel-pos3-sdt"):
         sdt = st.text_input(
-            "Số điện thoại:",
+            "Số điện thoại",
             placeholder="0xxx xxx xxx",
             key="pos3_sdt_input",
             max_chars=15,
+            label_visibility="collapsed",
         )
 
     from utils.db import clean_phone
@@ -1063,13 +1110,15 @@ def _render_section_giam_gia(tam_tinh: int) -> int:
         unsafe_allow_html=True
     )
 
-    gg_mode = st.radio(
-        "Loại giảm giá tổng đơn",
-        ["Số tiền", "Phần %"],
-        horizontal=True,
-        key="pos3_gg_mode",
-        label_visibility="collapsed",
-    )
+    # fix: round2 - wrap radio trong key=pos3-gg-mode để CSS selector match
+    with st.container(key="pos3-gg-mode"):
+        gg_mode = st.radio(
+            "Loại giảm giá tổng đơn",
+            ["Số tiền", "Phần %"],
+            horizontal=True,
+            key="pos3_gg_mode",
+            label_visibility="collapsed",
+        )
 
     if gg_mode == "Số tiền":
         with st.container(key="numkb-pos3-gg-tien"):
@@ -1104,44 +1153,41 @@ def _render_section_pttt(khach_can_tra: int) -> dict:
         unsafe_allow_html=True
     )
 
-    chia_nhieu = st.checkbox(
-        "Chia nhiều phương thức",
-        key="pos3_chia_nhieu",
-        value=False,
-    )
+    # fix: round2 - read chia_nhieu from session_state TRƯỚC để quyết flow,
+    # nhưng checkbox được render SAU 3 pill chips (theo design — chip top, checkbox dưới)
+    chia_nhieu = bool(st.session_state.get("pos3_chia_nhieu", False))
 
     if not chia_nhieu:
-        # Pill chips bằng 3-button cluster: button primary = active (red),
-        # secondary = default. State giữ ở pos3_pttt_radio (giữ tên key cũ).
-        options = [("Tiền mặt", "💵"), ("Chuyển khoản", "🏦"), ("Thẻ", "💳")]
-        cur = st.session_state.get("pos3_pttt_radio", "Tiền mặt")
-        if cur not in {o[0] for o in options}:
-            cur = "Tiền mặt"
-        # Mirror st.radio semantics — always present in session_state so the
-        # step3 snapshot captures it on render, not only after user clicks.
-        st.session_state["pos3_pttt_radio"] = cur
+        # fix: round2 - quay lại st.radio + CSS :has() cho pill chips (Option A).
+        # Key cũ pos3_pttt_radio giữ nguyên.
+        with st.container(key="pos3-pttt-radio"):
+            pttt_chon = st.radio(
+                "PTTT",
+                ["Tiền mặt", "Chuyển khoản", "Thẻ"],
+                key="pos3_pttt_radio",
+                horizontal=True,
+                label_visibility="collapsed",
+            )
 
-        with st.container(key="pos3-pttt-row"):
-            cols = st.columns(3)
-            for col, (label, icon) in zip(cols, options):
-                with col:
-                    is_active = (label == cur)
-                    if st.button(
-                        f"{icon} {label}",
-                        key=f"pos3_pttt_btn_{label}",
-                        type=("primary" if is_active else "secondary"),
-                        use_container_width=True,
-                    ):
-                        if label != cur:
-                            st.session_state["pos3_pttt_radio"] = label
-                            st.rerun()
+        # fix: round2 - checkbox "Chia nhiều phương thức" DƯỚI 3 chip
+        st.checkbox(
+            "Chia nhiều phương thức",
+            key="pos3_chia_nhieu",
+            value=False,
+        )
 
-        pttt_chon = cur
         return {
             "tien_mat":     khach_can_tra if pttt_chon == "Tiền mặt" else 0,
             "chuyen_khoan": khach_can_tra if pttt_chon == "Chuyển khoản" else 0,
             "the":          khach_can_tra if pttt_chon == "Thẻ" else 0,
         }
+
+    # chia_nhieu = True: render checkbox đầu rồi 3 number_input (giữ flow cũ)
+    st.checkbox(
+        "Chia nhiều phương thức",
+        key="pos3_chia_nhieu",
+        value=False,
+    )
 
     st.markdown("<div style='font-size:0.82rem;color:#666;margin:4px 0;'>"
                 "💵 Tiền mặt:</div>", unsafe_allow_html=True)
