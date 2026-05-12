@@ -58,22 +58,6 @@ button[aria-label="Manage app"] { display: none !important; }
 /* fix: round2 - badge KH cũ inline, fit-content, không full-width */
 .st-key-pos-kh-badge { display: inline-block; width: auto; }
 
-/* fix: round4 - hàng actions sau compact row khi KH đã match:
-   [Đổi SĐT (small) | Khách lẻ checkbox right] */
-.st-key-pos1-kh-actions div[data-testid="stHorizontalBlock"] {
-    flex-direction: row !important;
-    flex-wrap: nowrap !important;
-    align-items: center !important;
-    gap: 8px !important;
-    margin-top: 8px !important;
-}
-.st-key-pos1-kh-actions div[data-testid="stHorizontalBlock"] > div {
-    min-width: 0 !important;
-}
-.st-key-pos1-kh-actions [data-testid="stCheckbox"] {
-    justify-content: flex-end !important;
-    display: flex !important;
-}
 /* Đổi SĐT khách: pill nhỏ ~80% kích thước */
 .st-key-pos1_change_sdt button {
     font-size: 11px !important;
@@ -121,7 +105,7 @@ button[aria-label="Manage app"] { display: none !important; }
 }
 
 /* Search result card buttons — flat card */
-[class*="st-key-pos-add-"] button {
+[class*="st-key-pos_add_"] button {
     text-align: left !important;
     padding: 12px 14px !important;
     background: #fff !important;
@@ -130,14 +114,14 @@ button[aria-label="Manage app"] { display: none !important; }
     min-height: 56px !important;
     box-shadow: none !important;
 }
-[class*="st-key-pos-add-"] button p {
+[class*="st-key-pos_add_"] button p {
     text-align: left !important;
     margin: 0 !important;
 }
 
 /* ============ MÀN 1 — Cart ============ */
 /* fix: round2 - cart info button text căn TRÁI cứng (Streamlit default center) */
-[class*="st-key-pos-edit-"] button {
+[class*="st-key-pos_edit_"] button {
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
@@ -146,14 +130,14 @@ button[aria-label="Manage app"] { display: none !important; }
     padding: 12px 6px !important;
     min-height: 0 !important;
 }
-[class*="st-key-pos-edit-"] button:hover { background: #fafafa !important; }
-[class*="st-key-pos-edit-"] button p,
-[class*="st-key-pos-edit-"] button div {
+[class*="st-key-pos_edit_"] button:hover { background: #fafafa !important; }
+[class*="st-key-pos_edit_"] button p,
+[class*="st-key-pos_edit_"] button div {
     text-align: left !important;
     line-height: 1.3 !important;
     margin: 0 !important;
 }
-[class*="st-key-pos-edit-"] button > div {
+[class*="st-key-pos_edit_"] button > div {
     align-items: flex-start !important;
     width: 100% !important;
 }
@@ -168,11 +152,11 @@ button[aria-label="Manage app"] { display: none !important; }
 }
 
 /* fix: round4 - ✕ button: TOP-right, no border, no background */
-[class*="st-key-pos-del-"] {
+[class*="st-key-pos_del_"] {
     display: flex !important;
     justify-content: flex-end !important;
 }
-[class*="st-key-pos-del-"] button {
+[class*="st-key-pos_del_"] button {
     width: 28px !important; min-width: 28px !important; max-width: 28px !important;
     height: 28px !important;
     padding: 0 !important;
@@ -183,7 +167,7 @@ button[aria-label="Manage app"] { display: none !important; }
     box-shadow: none !important;
     margin: 0 !important;
 }
-[class*="st-key-pos-del-"] button:hover { color: #e63946 !important; }
+[class*="st-key-pos_del_"] button:hover { color: #e63946 !important; }
 
 /* fix: round2 - "Xóa hết" 28x28 pill (was 26px) */
 .st-key-cart-header-zone [data-testid="stBaseButton-secondary"] {
@@ -207,17 +191,22 @@ button[aria-label="Manage app"] { display: none !important; }
 }
 
 /* ============ STICKY FOOTER (cả 2 màn) ============ */
+/* fix: round5 - dùng 100vw + calc(50% - 50vw) để span đúng viewport,
+   không phụ thuộc Streamlit block-container padding (round 4 -1rem chưa đủ phía phải) */
 .st-key-pos-footer-sticky,
 .st-key-pos3-footer-sticky {
     position: sticky !important;
     bottom: 0 !important;
     z-index: 30 !important;
+    width: 100vw !important;
+    margin-left: calc(50% - 50vw) !important;
+    margin-right: calc(50% - 50vw) !important;
+    margin-top: 14px !important;
     background: #fff !important;
     border-top: 1px solid #ececef !important;
     padding: 12px 1rem calc(16px + env(safe-area-inset-bottom)) !important;
-    /* fix: round4 - dùng -1rem để span đều 2 mép theo block-container padding */
-    margin: 14px -1rem 0 !important;
     box-shadow: 0 -8px 24px rgba(0,0,0,0.04) !important;
+    box-sizing: border-box !important;
 }
 .st-key-pos-footer-sticky [data-testid="stBaseButton-primary"],
 .st-key-pos3-footer-sticky [data-testid="stBaseButton-primary"] {
@@ -884,10 +873,10 @@ def _render_cart_line(line: dict):
                      help="Xóa khỏi giỏ"):
             _remove_from_cart(line["ma_hang"])
             st.rerun()
-        # fix: round4 - giá đỏ BOTTOM-right
+        # fix: round5 - giá render sát ✕, bỏ padding để không tràn ngoài card
         st.markdown(
             f"<div style='font-weight:700;font-size:15px;color:#e63946;"
-            f"text-align:right;white-space:nowrap;padding:8px 0 6px;'>"
+            f"text-align:right;white-space:nowrap;margin:2px 0 0;'>"
             f"{fmt_vnd(thanh_tien)}</div>",
             unsafe_allow_html=True,
         )
@@ -1075,16 +1064,14 @@ def _render_section_khach_hang():
         unsafe_allow_html=True
     )
 
-    # fix: round4 - tính matched state TRƯỚC để quyết vị trí render checkbox.
-    # Matched → checkbox ở bottom-right (cùng row "Đổi SĐT").
-    # Not matched / khách lẻ → checkbox ở top.
     is_khach_le_state = bool(st.session_state.get("pos3_khach_le", False))
     cached_kh = st.session_state.get("pos3_lookup_result")
     cached_sdt = st.session_state.get("pos3_last_lookup_sdt", "")
     matched = bool(cached_kh and cached_sdt) and not is_khach_le_state
 
     if matched:
-        # fix: round3 - compact row + fix: round4 - actions row [Đổi SĐT | Khách lẻ]
+        # fix: round5 - matched mode: compact row + "Đổi SĐT" pill alone.
+        # Checkbox "Khách lẻ" KHÔNG render khi đã có SĐT match.
         st.markdown(
             f"<div style='display:flex;align-items:center;gap:10px;"
             f"padding:10px 14px;background:#fff;border-radius:12px;"
@@ -1098,20 +1085,11 @@ def _render_section_khach_hang():
             f"</div>",
             unsafe_allow_html=True,
         )
-        with st.container(key="pos1-kh-actions"):
-            col_chg, col_kle = st.columns([3, 4])
-            with col_chg:
-                if st.button("Đổi SĐT khách", key="pos1_change_sdt"):
-                    st.session_state.pop("pos3_last_lookup_sdt", None)
-                    st.session_state.pop("pos3_lookup_result", None)
-                    st.session_state["pos3_sdt_input"] = ""
-                    st.rerun()
-            with col_kle:
-                st.checkbox(
-                    "Khách lẻ (không cần SĐT)",
-                    key="pos3_khach_le",
-                    value=False,
-                )
+        if st.button("Đổi SĐT khách", key="pos1_change_sdt"):
+            st.session_state.pop("pos3_last_lookup_sdt", None)
+            st.session_state.pop("pos3_lookup_result", None)
+            st.session_state["pos3_sdt_input"] = ""
+            st.rerun()
         st.session_state["pos3_kh_data"] = {
             "ma_kh":  cached_kh.get("ma_kh"),
             "ten_kh": cached_kh.get("ten_kh", ""),
@@ -1120,14 +1098,13 @@ def _render_section_khach_hang():
         }
         return
 
-    # Not matched (hoặc đang khách lẻ) — checkbox ở top
-    is_khach_le = st.checkbox(
-        "Khách lẻ (không cần SĐT)",
-        key="pos3_khach_le",
-        value=False,
-    )
-
-    if is_khach_le:
+    # Khách lẻ mode — checkbox alone (already checked); no input.
+    if is_khach_le_state:
+        st.checkbox(
+            "Khách lẻ (không cần SĐT)",
+            key="pos3_khach_le",
+            value=False,
+        )
         st.session_state["pos3_kh_data"] = {
             "ma_kh":  None,
             "ten_kh": "Khách lẻ",
@@ -1136,6 +1113,7 @@ def _render_section_khach_hang():
         }
         return
 
+    # fix: round5 - input mode: input ở TRÊN, checkbox "Khách lẻ" ở DƯỚI.
     # fix: round2 - collapse label, dùng placeholder thay vì label dòng riêng
     with st.container(key="numkb-tel-pos3-sdt"):
         sdt = st.text_input(
@@ -1145,6 +1123,12 @@ def _render_section_khach_hang():
             max_chars=15,
             label_visibility="collapsed",
         )
+
+    st.checkbox(
+        "Khách lẻ (không cần SĐT)",
+        key="pos3_khach_le",
+        value=False,
+    )
 
     from utils.db import clean_phone
     sdt_clean = clean_phone(sdt)
