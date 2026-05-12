@@ -200,7 +200,7 @@ button[aria-label="Manage app"] { display: none !important; }
 }
 [class*="st-key-pos_edit_"] button p:nth-of-type(2) strong {
     position: absolute !important;
-    right: 4px !important;
+    right: 0 !important;
     top: 0 !important;
     color: #e63946 !important;
     font-size: 15px !important;
