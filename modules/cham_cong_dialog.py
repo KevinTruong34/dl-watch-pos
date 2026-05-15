@@ -7,6 +7,9 @@ Mở từ avatar popover (nút "⏱️ Chấm công"):
 4. Click confirm → RPC record_attendance_event → toast success
 
 Refs: PLAN_CHAM_CONG.md section 8.
+
+Note: RPC wrappers inline trong module này (chỉ dùng cho dialog) để tránh
+sửa utils/db.py — surgical scope theo feature.
 """
 from __future__ import annotations
 
@@ -15,10 +18,55 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from utils.auth import get_user
-from utils.db import validate_check_in_pos_rpc, record_attendance_event_rpc
+from utils.db import supabase
 
 VN_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
 
+
+# ─────────────────────────────────────────────────────────────
+# RPC wrappers (deploy trong DLW Phase 1 schema migration)
+# ─────────────────────────────────────────────────────────────
+
+def _validate_check_in_pos(nv_id: int, ip: str) -> dict:
+    """Wrap RPC validate_check_in_pos. Returns dict shape from PLAN section 5.1."""
+    try:
+        res = supabase.rpc("validate_check_in_pos", {
+            "p_nhan_vien_id": nv_id,
+            "p_ip_address": ip,
+        }).execute()
+        result = res.data
+        if isinstance(result, list):
+            result = result[0] if result else {}
+        if not isinstance(result, dict):
+            return {"ok": False, "error": "RPC trả về kết quả không hợp lệ"}
+        return result
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def _record_attendance_event(nv_id: int, event_type: str,
+                             ip: str, note: str | None = None) -> dict:
+    """Wrap RPC record_attendance_event. Returns {ok, event_id?, error?}."""
+    try:
+        res = supabase.rpc("record_attendance_event", {
+            "p_nhan_vien_id": nv_id,
+            "p_event_type": event_type,
+            "p_ip_address": ip,
+            "p_note": note,
+        }).execute()
+        result = res.data
+        if isinstance(result, list):
+            result = result[0] if result else {}
+        if not isinstance(result, dict):
+            return {"ok": False, "error": "RPC trả về kết quả không hợp lệ"}
+        return result
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+# ─────────────────────────────────────────────────────────────
+# IP detection
+# ─────────────────────────────────────────────────────────────
 
 def _detect_client_ip() -> tuple[str | None, str]:
     """Return (ip, source). Source dùng cho debug expander."""
@@ -42,6 +90,10 @@ def _detect_client_ip() -> tuple[str | None, str]:
     return None, "none"
 
 
+# ─────────────────────────────────────────────────────────────
+# Dialog
+# ─────────────────────────────────────────────────────────────
+
 @st.dialog("⏱️ Chấm công")
 def show_cham_cong_dialog():
     user = get_user()
@@ -59,7 +111,7 @@ def show_cham_cong_dialog():
         return
 
     # Validate → check NV / schedule / IP whitelist
-    result = validate_check_in_pos_rpc(user["id"], ip)
+    result = _validate_check_in_pos(user["id"], ip)
 
     # Debug expander cho admin verify IP detection (collapsed default)
     with st.expander("🔍 Debug IP (admin)", expanded=False):
@@ -140,10 +192,10 @@ def show_cham_cong_dialog():
         use_container_width=True,
         key="cc_confirm_btn",
     ):
-        record = record_attendance_event_rpc(
+        record = _record_attendance_event(
             nv_id=user["id"],
             event_type=action,
-            ip_address=ip,
+            ip=ip,
             note=note or None,
         )
         if record.get("ok"):
