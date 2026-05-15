@@ -250,14 +250,22 @@ with st.container(key="header-zone"):
             if st.button("⏱️ Chấm công", use_container_width=True, key="cham_cong_btn"):
                 st.session_state["_show_cham_cong_dialog"] = True
                 st.rerun()
+            # Lương của tôi (Phase 8) — set flag + rerun
+            if st.button("📋 Lương của tôi", use_container_width=True, key="my_payroll_btn"):
+                st.session_state["_show_my_payroll_dialog"] = True
+                st.rerun()
             if st.button("🚪 Đăng xuất", use_container_width=True, key="logout_btn"):
                 do_logout()
                 st.rerun()
 
-# Open chấm công dialog (scope ngoài popover để dialog render đúng)
+# Open dialogs (scope ngoài popover để render đúng)
 if st.session_state.pop("_show_cham_cong_dialog", False):
     from modules.cham_cong_dialog import show_cham_cong_dialog
     show_cham_cong_dialog()
+
+if st.session_state.pop("_show_my_payroll_dialog", False):
+    from modules.cham_cong_my_payroll import show_my_payroll_dialog
+    show_my_payroll_dialog()
 
 st.markdown("<hr style='margin:6px 0 12px 0;'>", unsafe_allow_html=True)
 
