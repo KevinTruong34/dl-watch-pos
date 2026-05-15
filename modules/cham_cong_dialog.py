@@ -2,11 +2,12 @@
 
 Mở từ avatar popover (nút "⏱️ Chấm công"):
 1. Detect client IP NAT egress qua JS fetch api.ipify.org (utils/client_ip_component)
-2. Call RPC validate_check_in_pos để check NV active + lịch trong khung + IP whitelist
+2. Call RPC validate_check_in_pos để check NV active + lịch trong khung +
+   active_chi_nhanh khớp + IP whitelist
 3. Render info (chi nhánh / ca / IN hay OUT) + nút confirm
 4. Click confirm → RPC record_attendance_event → toast success
 
-Refs: PLAN_CHAM_CONG.md section 8.
+Refs: PLAN_CHAM_CONG.md section 8 + hotfix #2 (active_chi_nhanh enforcement).
 
 Note: RPC wrappers inline trong module này (chỉ dùng cho dialog) để tránh
 sửa utils/db.py — surgical scope theo feature.
@@ -17,22 +18,23 @@ import streamlit as st
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from utils.auth import get_user
+from utils.auth import get_user, get_active_branch
 from utils.db import supabase
 
 VN_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
 
 
 # ─────────────────────────────────────────────────────────────
-# RPC wrappers (deploy trong DLW Phase 1 schema migration)
+# RPC wrappers (deploy trong DLW Phase 1 schema migration + hotfix #2)
 # ─────────────────────────────────────────────────────────────
 
-def _validate_check_in_pos(nv_id: int, ip: str) -> dict:
-    """Wrap RPC validate_check_in_pos. Returns dict shape from PLAN section 5.1."""
+def _validate_check_in_pos(nv_id: int, ip: str, active_cn: str | None) -> dict:
+    """Wrap RPC validate_check_in_pos. Pass active_cn để RPC reject mismatch CN."""
     try:
         res = supabase.rpc("validate_check_in_pos", {
             "p_nhan_vien_id": nv_id,
             "p_ip_address": ip,
+            "p_active_chi_nhanh": active_cn,
         }).execute()
         result = res.data
         if isinstance(result, list):
@@ -44,15 +46,18 @@ def _validate_check_in_pos(nv_id: int, ip: str) -> dict:
         return {"ok": False, "error": str(e)}
 
 
-def _record_attendance_event(nv_id: int, event_type: str,
-                             ip: str, note: str | None = None) -> dict:
-    """Wrap RPC record_attendance_event. Returns {ok, event_id?, error?}."""
+def _record_attendance_event(nv_id: int, event_type: str, ip: str,
+                             active_cn: str | None,
+                             note: str | None = None) -> dict:
+    """Wrap RPC record_attendance_event. Pass active_cn để defense-in-depth
+    re-validate (NV có thể đổi CN giữa lúc dialog mở và click confirm)."""
     try:
         res = supabase.rpc("record_attendance_event", {
             "p_nhan_vien_id": nv_id,
             "p_event_type": event_type,
             "p_ip_address": ip,
             "p_note": note,
+            "p_active_chi_nhanh": active_cn,
         }).execute()
         result = res.data
         if isinstance(result, list):
@@ -88,6 +93,7 @@ def show_cham_cong_dialog():
         st.error("⛔ Bạn cần đăng nhập trước.")
         return
 
+    active_cn = get_active_branch()
     ip, ip_source = _detect_client_ip()
 
     if not ip:
@@ -97,13 +103,14 @@ def show_cham_cong_dialog():
         )
         return
 
-    # Validate → check NV / schedule / IP whitelist
-    result = _validate_check_in_pos(user["id"], ip)
+    # Validate → check NV / schedule / active_chi_nhanh / IP whitelist
+    result = _validate_check_in_pos(user["id"], ip, active_cn)
 
-    # Debug expander cho admin verify IP detection (collapsed default)
-    with st.expander("🔍 Debug IP (admin)", expanded=False):
+    # Debug expander cho admin verify (collapsed default)
+    with st.expander("🔍 Debug (admin)", expanded=False):
         st.caption(f"IP detected: `{ip}` (source: {ip_source})")
         st.caption(f"NV: {user.get('ho_ten','?')} (id={user.get('id')})")
+        st.caption(f"Active CN: `{active_cn}`")
         if ip_source == "ipify_js":
             st.caption("✓ IP NAT egress thật (đã match whatismyip.com)")
 
@@ -181,10 +188,13 @@ def show_cham_cong_dialog():
         use_container_width=True,
         key="cc_confirm_btn",
     ):
+        # Re-fetch active_cn lúc confirm — phòng NV đổi CN giữa lúc dialog mở
+        active_cn_now = get_active_branch()
         record = _record_attendance_event(
             nv_id=user["id"],
             event_type=action,
             ip=ip,
+            active_cn=active_cn_now,
             note=note or None,
         )
         if record.get("ok"):
