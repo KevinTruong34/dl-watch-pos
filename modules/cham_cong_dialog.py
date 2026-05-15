@@ -1,7 +1,7 @@
 """Dialog Chấm công cho POS — Phase 3.
 
 Mở từ avatar popover (nút "⏱️ Chấm công"):
-1. Detect client IP (st.context.ip_address → X-Forwarded-For fallback)
+1. Detect client IP NAT egress qua JS fetch api.ipify.org (utils/client_ip_component)
 2. Call RPC validate_check_in_pos để check NV active + lịch trong khung + IP whitelist
 3. Render info (chi nhánh / ca / IN hay OUT) + nút confirm
 4. Click confirm → RPC record_attendance_event → toast success
@@ -69,24 +69,11 @@ def _record_attendance_event(nv_id: int, event_type: str,
 # ─────────────────────────────────────────────────────────────
 
 def _detect_client_ip() -> tuple[str | None, str]:
-    """Return (ip, source). Source dùng cho debug expander."""
-    # Method 1: st.context.ip_address (Streamlit 1.31+)
-    try:
-        ip = getattr(st.context, "ip_address", None)
-        if ip:
-            return ip, "context.ip_address"
-    except Exception:
-        pass
-    # Method 2: X-Forwarded-For header (first IP = original client)
-    try:
-        headers = getattr(st.context, "headers", None) or {}
-        xff = headers.get("X-Forwarded-For") or headers.get("x-forwarded-for")
-        if xff:
-            ip = xff.split(",")[0].strip()
-            if ip:
-                return ip, "x_forwarded_for"
-    except Exception:
-        pass
+    """Return (ip, source). Dùng JS fetch api.ipify.org để lấy IP NAT egress thật."""
+    from utils.client_ip_component import get_client_ip
+    ip = get_client_ip()
+    if ip:
+        return ip, "ipify_js"
     return None, "none"
 
 
@@ -106,7 +93,7 @@ def show_cham_cong_dialog():
     if not ip:
         st.error(
             "❌ Không lấy được địa chỉ IP. "
-            "Liên hệ admin để xử lý (có thể Streamlit Cloud chưa expose client IP)."
+            "Liên hệ admin để xử lý (api.ipify.org có thể bị block)."
         )
         return
 
@@ -117,6 +104,8 @@ def show_cham_cong_dialog():
     with st.expander("🔍 Debug IP (admin)", expanded=False):
         st.caption(f"IP detected: `{ip}` (source: {ip_source})")
         st.caption(f"NV: {user.get('ho_ten','?')} (id={user.get('id')})")
+        if ip_source == "ipify_js":
+            st.caption("✓ IP NAT egress thật (đã match whatismyip.com)")
 
     if not result or not result.get("ok"):
         err = (result or {}).get("error", "Lỗi không xác định")
