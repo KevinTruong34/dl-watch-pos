@@ -246,9 +246,18 @@ with st.container(key="header-zone"):
                 unsafe_allow_html=True
             )
             st.markdown("---")
+            # Chấm công — set flag + rerun; dialog render ở scope ngoài popover
+            if st.button("⏱️ Chấm công", use_container_width=True, key="cham_cong_btn"):
+                st.session_state["_show_cham_cong_dialog"] = True
+                st.rerun()
             if st.button("🚪 Đăng xuất", use_container_width=True, key="logout_btn"):
                 do_logout()
                 st.rerun()
+
+# Open chấm công dialog (scope ngoài popover để dialog render đúng)
+if st.session_state.pop("_show_cham_cong_dialog", False):
+    from modules.cham_cong_dialog import show_cham_cong_dialog
+    show_cham_cong_dialog()
 
 st.markdown("<hr style='margin:6px 0 12px 0;'>", unsafe_allow_html=True)
 
